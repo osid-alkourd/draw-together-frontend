@@ -6,10 +6,8 @@ export function RegisterCard() {
   return (
     <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/70 sm:p-10">
       <div className="space-y-2 text-center">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-teal-600">
-          Draw Together
-        </p>
-        <h1 className="text-3xl font-semibold text-slate-900">Register</h1>
+       
+        <h1 className="text-xl font-semibold text-slate-900">Register To Draw Together</h1>
       </div>
 
       <form
@@ -75,7 +73,7 @@ export function RegisterCard() {
 
       <p className="mt-8 text-center text-sm text-slate-500">
         Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-teal-600 hover:text-teal-500">
+        <Link href="/DrawTogether/auth/login" className="font-semibold text-teal-600 hover:text-teal-500">
           Login
         </Link>
       </p>
