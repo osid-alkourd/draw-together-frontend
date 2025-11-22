@@ -1,13 +1,16 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 interface CreateBoardButtonProps {
   className?: string;
 }
 
 export function CreateBoardButton({ className = "" }: CreateBoardButtonProps) {
+  const router = useRouter();
+
   const handleCreateBoard = () => {
-    // TODO: Implement board creation logic
-    console.log("Create new board");
+    router.push("/DrawTogether/dashboard/create");
   };
 
   return (
