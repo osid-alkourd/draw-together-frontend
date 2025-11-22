@@ -30,13 +30,13 @@ export function DashboardHeader() {
             Home
           </Link>
           <Link
-            href="/DrawTogether/dashboard#shared"
+            href="/DrawTogether/dashboard/shared-boards"
             className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
           >
             Shared With Me
           </Link>
           <Link
-            href="/DrawTogether/dashboard#my-boards"
+            href="/DrawTogether/dashboard/my-boards"
             className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
           >
             My Boards
@@ -166,13 +166,13 @@ export function DashboardHeader() {
             Home
           </Link>
           <Link
-            href="/DrawTogether/dashboard#shared"
+            href="/DrawTogether/dashboard/shared-boards"
             className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
           >
             Shared With Me
           </Link>
           <Link
-            href="/DrawTogether/dashboard#my-boards"
+            href="/DrawTogether/dashboard/my-boards"
             className="text-sm font-medium text-slate-700 hover:text-teal-600 transition-colors"
           >
             My Boards
