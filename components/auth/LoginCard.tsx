@@ -6,7 +6,7 @@ export function LoginCard() {
   return (
     <div className="w-full max-w-lg rounded-3xl bg-white p-8 shadow-xl shadow-slate-200/70 sm:p-10">
       <div className="space-y-2 text-center">
-        <h1 className="text-xl font-semibold text-slate-900">Login Draw Together</h1>
+        <h1 className="text-xl font-semibold text-slate-900">Login To Draw Together</h1>
         <p className="text-sm text-slate-500">Welcome back to your collaborative workspace.</p>
       </div>
 

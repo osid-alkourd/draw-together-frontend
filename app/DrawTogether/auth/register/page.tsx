@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { RegisterCard } from "@/components/auth/RegisterCard";
-import { AppHeader } from "@/components/layout/AppHeader";
+import { LandingHeader } from "@/components/layout/LandingHeader";
 
 export const metadata: Metadata = {
   title: "Register | DrawTogether",
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function RegisterPage() {
   return (
     <div className="min-h-screen bg-slate-50">
-      <AppHeader />
+      <LandingHeader />
       <div className="flex items-center justify-center px-4 py-12">
         <RegisterCard />
       </div>
