@@ -58,9 +58,7 @@ export function MyBoardsContent() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const handleOpenBoard = (boardId: string) => {
-    // TODO: Navigate to board editor
-    console.log("Opening board:", boardId);
-    // router.push(`/DrawTogether/board/${boardId}`);
+    router.push(`/DrawTogether/dashboard/boards/${boardId}`);
   };
 
   const handleMenuAction = (boardId: string, action: string) => {
