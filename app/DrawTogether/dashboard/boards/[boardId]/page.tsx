@@ -10,15 +10,36 @@ import {
 import { useParams } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 
-const sharedUsers = ["Ali", "Sara", "Omar"];
+const SHARED_USERS = ["Ali", "Sara", "Omar"];
+const TOOLBAR_ITEMS: { label: string; value: Tool }[] = [
+  { label: "Pen", value: "pen" },
+  { label: "Eraser", value: "eraser" },
+  { label: "Rectangle", value: "rectangle" },
+  { label: "Circle", value: "circle" },
+  { label: "Line", value: "line" },
+  { label: "Arrow", value: "arrow" },
+  { label: "Text", value: "text" },
+];
 
 type Point = { x: number; y: number };
+type Tool =
+  | "pen"
+  | "eraser"
+  | "rectangle"
+  | "circle"
+  | "line"
+  | "arrow"
+  | "text";
+
 type Stroke = {
-  tool: "pen" | "eraser";
+  tool: Tool;
   color: string;
   width: number;
   points: Point[];
+  text?: string;
 };
+
+const SHAPE_TOOLS: Tool[] = ["rectangle", "circle", "line", "arrow"];
 
 export default function BoardPage() {
   const params = useParams<{ boardId: string | string[] }>();
@@ -54,8 +75,8 @@ export default function BoardPage() {
 
 function Whiteboard() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState("#111827");
   const [strokes, setStrokes] = useState<Stroke[]>([]);
   const strokesRef = useRef<Stroke[]>([]);
@@ -86,9 +107,9 @@ function Whiteboard() {
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-    const rect = container.getBoundingClientRect();
+    const wrapper = wrapperRef.current;
+    if (!canvas || !wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
     repaint(currentStroke.current ?? undefined);
@@ -124,15 +145,33 @@ function Whiteboard() {
   ) => {
     event.preventDefault();
     const point = getPoint(event);
-    const context = getContext();
-    if (!point || !context) return;
-    setIsDrawing(true);
-    currentStroke.current = {
+    if (!point) return;
+
+    if (tool === "text") {
+      const value =
+        typeof window !== "undefined" ? window.prompt("Enter text") : undefined;
+      const textValue = value?.trim();
+      if (!textValue) return;
+      const textStroke: Stroke = {
+        tool: "text",
+        color,
+        width: 1,
+        points: [point],
+        text: textValue,
+      };
+      setStrokes((prev) => [...prev, textStroke]);
+      return;
+    }
+
+    const newStroke: Stroke = {
       tool,
       color: tool === "eraser" ? "#ffffff" : color,
-      width: tool === "eraser" ? 20 : 4,
-      points: [point],
+      width: getStrokeWidth(tool),
+      points: [point, ...(isShapeTool(tool) ? [point] : [])],
     };
+
+    currentStroke.current = newStroke;
+    setIsDrawing(true);
   };
 
   const handlePointerMove = (
@@ -141,37 +180,55 @@ function Whiteboard() {
     if (!isDrawing || !currentStroke.current) return;
     event.preventDefault();
     const point = getPoint(event);
-    const context = getContext();
-    if (!point || !context) return;
-    const stroke = currentStroke.current;
-    stroke.points.push(point);
-    repaint(stroke);
+    if (!point) return;
+
+    const activeStroke = currentStroke.current;
+    if (isShapeTool(activeStroke.tool)) {
+      activeStroke.points[1] = point;
+    } else {
+      activeStroke.points.push(point);
+    }
+
+    repaint(activeStroke);
   };
 
-  const endDrawing = useCallback(() => {
+  const finishStroke = useCallback(() => {
     if (!isDrawing || !currentStroke.current) return;
     setIsDrawing(false);
-    const finishedStroke = currentStroke.current;
+    const stroke = currentStroke.current;
     currentStroke.current = null;
-    if (!finishedStroke || !finishedStroke.points.length) {
+
+    if (!stroke) {
       repaint();
       return;
     }
+
+    if (isShapeTool(stroke.tool)) {
+      const [start, end] = stroke.points;
+      if (!end || pointsAreClose(start, end)) {
+        repaint();
+        return;
+      }
+    } else if (stroke.points.length < 2) {
+      repaint();
+      return;
+    }
+
     setStrokes((prev) => {
-      const next = [...prev, finishedStroke];
+      const next = [...prev, stroke];
       console.log("[stroke] saved, new total:", next.length);
       return next;
     });
   }, [isDrawing, repaint]);
 
   useEffect(() => {
-    window.addEventListener("mouseup", endDrawing);
-    window.addEventListener("touchend", endDrawing);
+    window.addEventListener("mouseup", finishStroke);
+    window.addEventListener("touchend", finishStroke);
     return () => {
-      window.removeEventListener("mouseup", endDrawing);
-      window.removeEventListener("touchend", endDrawing);
+      window.removeEventListener("mouseup", finishStroke);
+      window.removeEventListener("touchend", finishStroke);
     };
-  }, [endDrawing]);
+  }, [finishStroke]);
 
   const handleUndo = () => {
     setStrokes((prev) => {
@@ -193,18 +250,18 @@ function Whiteboard() {
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
       <div
-        ref={containerRef}
+        ref={wrapperRef}
         className="relative flex w-full flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-xl"
       >
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
           <span className="text-slate-500">Shared with:</span>
-          {sharedUsers.map((user, index) => (
+          {SHARED_USERS.map((user, index) => (
             <span
               key={user}
               className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
             >
               {user}
-              {index < sharedUsers.length - 1 ? "," : ""}
+              {index < SHARED_USERS.length - 1 ? "," : ""}
             </span>
           ))}
         </div>
@@ -226,12 +283,18 @@ function Whiteboard() {
           <canvas
             ref={canvasRef}
             className={`h-full w-full rounded-2xl border border-slate-200 bg-white shadow-inner ${
-              tool === "eraser" ? "cursor-cell" : "cursor-crosshair"
+              tool === "eraser"
+                ? "cursor-cell"
+                : tool === "text"
+                ? "cursor-text"
+                : "cursor-crosshair"
             }`}
             onMouseDown={handlePointerDown}
             onMouseMove={handlePointerMove}
+            onMouseUp={finishStroke}
             onTouchStart={handlePointerDown}
             onTouchMove={handlePointerMove}
+            onTouchEnd={finishStroke}
           />
           {!strokes.length && !isDrawing && (
             <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
@@ -249,26 +312,19 @@ function Whiteboard() {
       <aside className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl lg:w-[300px]">
         <h2 className="text-lg font-semibold text-slate-900">Tools</h2>
         <div className="mt-6 space-y-3">
-          <button
-            onClick={() => setTool("pen")}
-            className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              tool === "pen"
-                ? "bg-teal-500 text-white shadow"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Pen
-          </button>
-          <button
-            onClick={() => setTool("eraser")}
-            className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-              tool === "eraser"
-                ? "bg-teal-500 text-white shadow"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-            }`}
-          >
-            Eraser
-          </button>
+          {TOOLBAR_ITEMS.map(({ label, value }) => (
+            <button
+              key={value}
+              onClick={() => setTool(value)}
+              className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                tool === value
+                  ? "bg-teal-500 text-white shadow"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
           <label className="flex w-full cursor-pointer items-center justify-between rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600">
             Color Picker
             <input
@@ -290,56 +346,141 @@ function Whiteboard() {
           >
             Undo Last
           </button>
-          <button
-            disabled
-            className="w-full rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Shapes (coming soon)
-          </button>
-          <button
-            disabled
-            className="w-full rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-sm font-semibold text-slate-400"
-          >
-            Text (coming soon)
-          </button>
+          <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+            More tools coming soon
+          </div>
         </div>
       </aside>
     </div>
   );
 }
 
-function drawStroke(
-  context: CanvasRenderingContext2D,
-  stroke: Stroke | null | undefined
-) {
-  if (!stroke || !stroke.points || stroke.points.length === 0) {
-    return;
-  }
-
+function drawStroke(context: CanvasRenderingContext2D, stroke: Stroke) {
+  const [start, end] = stroke.points;
   context.save();
-  context.strokeStyle = stroke.color;
-  context.lineWidth = stroke.width;
-  context.lineJoin = "round";
-  context.lineCap = "round";
 
-  if (stroke.points.length === 1) {
-    const [point] = stroke.points;
-    context.beginPath();
-    context.arc(point.x, point.y, stroke.width / 2, 0, Math.PI * 2);
-    context.fillStyle =
-      stroke.tool === "eraser" ? "#ffffff" : stroke.color ?? "#111827";
-    context.fill();
-    context.restore();
-    return;
+  switch (stroke.tool) {
+    case "pen":
+    case "eraser": {
+      if (stroke.points.length < 2) break;
+      context.strokeStyle = stroke.color;
+      context.lineWidth = stroke.width;
+      context.lineJoin = "round";
+      context.lineCap = "round";
+      context.beginPath();
+      context.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i += 1) {
+        context.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      context.stroke();
+      break;
+    }
+    case "rectangle": {
+      if (!start || !end) break;
+      const x = Math.min(start.x, end.x);
+      const y = Math.min(start.y, end.y);
+      const width = Math.abs(end.x - start.x);
+      const height = Math.abs(end.y - start.y);
+      context.strokeStyle = stroke.color;
+      context.lineWidth = stroke.width;
+      context.strokeRect(x, y, width, height);
+      break;
+    }
+    case "circle": {
+      if (!start || !end) break;
+      const centerX = (start.x + end.x) / 2;
+      const centerY = (start.y + end.y) / 2;
+      const radius =
+        Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y)) / 2;
+      context.beginPath();
+      context.strokeStyle = stroke.color;
+      context.lineWidth = stroke.width;
+      context.arc(centerX, centerY, radius, 0, Math.PI * 2);
+      context.stroke();
+      break;
+    }
+    case "line": {
+      if (!start || !end) break;
+      context.beginPath();
+      context.strokeStyle = stroke.color;
+      context.lineWidth = stroke.width;
+      context.moveTo(start.x, start.y);
+      context.lineTo(end.x, end.y);
+      context.stroke();
+      break;
+    }
+    case "arrow": {
+      if (!start || !end) break;
+      drawArrow(context, start, end, stroke.color, stroke.width);
+      break;
+    }
+    case "text": {
+      if (!start || !stroke.text) break;
+      context.fillStyle = stroke.color;
+      context.font = `${Math.max(stroke.width * 7, 20)}px "Inter", sans-serif`;
+      context.textBaseline = "top";
+      context.fillText(stroke.text, start.x, start.y);
+      break;
+    }
+    default:
+      break;
   }
 
-  context.beginPath();
-  context.moveTo(stroke.points[0].x, stroke.points[0].y);
-  for (let i = 1; i < stroke.points.length; i += 1) {
-    const point = stroke.points[i];
-    context.lineTo(point.x, point.y);
-  }
-  context.stroke();
   context.restore();
 }
 
+function drawArrow(
+  context: CanvasRenderingContext2D,
+  start: Point,
+  end: Point,
+  color: string,
+  width: number
+) {
+  context.strokeStyle = color;
+  context.fillStyle = color;
+  context.lineWidth = width;
+  context.beginPath();
+  context.moveTo(start.x, start.y);
+  context.lineTo(end.x, end.y);
+  context.stroke();
+
+  const headLength = 16;
+  const angle = Math.atan2(end.y - start.y, end.x - start.x);
+  context.beginPath();
+  context.moveTo(end.x, end.y);
+  context.lineTo(
+    end.x - headLength * Math.cos(angle - Math.PI / 6),
+    end.y - headLength * Math.sin(angle - Math.PI / 6)
+  );
+  context.lineTo(
+    end.x - headLength * Math.cos(angle + Math.PI / 6),
+    end.y - headLength * Math.sin(angle + Math.PI / 6)
+  );
+  context.closePath();
+  context.fill();
+}
+
+function isShapeTool(tool: Tool) {
+  return SHAPE_TOOLS.includes(tool);
+}
+
+function getStrokeWidth(tool: Tool) {
+  switch (tool) {
+    case "eraser":
+      return 24;
+    case "pen":
+      return 4;
+    case "line":
+    case "arrow":
+      return 3;
+    case "text":
+      return 1;
+    default:
+      return 2;
+  }
+}
+
+function pointsAreClose(a?: Point, b?: Point) {
+  if (!a || !b) return true;
+  return Math.hypot(a.x - b.x, a.y - b.y) < 6;
+}
