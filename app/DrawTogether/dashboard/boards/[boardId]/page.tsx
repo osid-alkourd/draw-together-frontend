@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import { ShareModal } from "@/components/dashboard/ShareModal";
 
 const SHARED_USERS = ["Ali", "Sara", "Omar"];
 
@@ -128,6 +129,8 @@ export default function BoardPage() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingTextValue, setEditingTextValue] = useState<string>("");
   const [cursor, setCursor] = useState<string>("default");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [sharedUsers, setSharedUsers] = useState<string[]>(SHARED_USERS);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const currentRectRef = useRef<Rectangle | null>(null);
   const currentCircleRef = useRef<Circle | null>(null);
@@ -1113,6 +1116,34 @@ export default function BoardPage() {
     const point = getPoint(event);
     if (!point) return;
 
+    // Select tool - select any shape including text
+    if (activeTool === "select") {
+      // Check text first (topmost)
+      for (let i = texts.length - 1; i >= 0; i--) {
+        const text = texts[i];
+        if (isPointInText(point, text)) {
+          setSelectedTextId(text.id);
+          setEditingTextId(text.id);
+          setEditingTextValue(text.text);
+          // Clear other selections
+          setSelectedRectangleId(null);
+          setSelectedCircleId(null);
+          setSelectedArrowId(null);
+          setSelectedLineId(null);
+          return;
+        }
+      }
+      // Check other shapes...
+      // For now, just deselect everything if clicking empty space
+      setSelectedTextId(null);
+      setSelectedRectangleId(null);
+      setSelectedCircleId(null);
+      setSelectedArrowId(null);
+      setSelectedLineId(null);
+      setEditingTextId(null);
+      return;
+    }
+
     // Eraser tool - erase shapes at point
     if (activeTool === "eraser") {
       eraseAtPoint(point);
@@ -1762,6 +1793,8 @@ export default function BoardPage() {
         const text = texts[i];
         if (isPointInText(point, text)) {
           setSelectedTextId(text.id);
+          setEditingTextId(text.id);
+          setEditingTextValue(text.text);
           // Start move
           interactionRef.current = {
             type: "move",
@@ -1937,6 +1970,19 @@ export default function BoardPage() {
         }
       }
       setCursor("text");
+    }
+
+    // Update cursor for select tool (hover detection)
+    if (activeTool === "select" && !interactionRef.current) {
+      // Check if hovering over any text
+      for (let i = texts.length - 1; i >= 0; i--) {
+        const text = texts[i];
+        if (isPointInText(point, text)) {
+          setCursor("pointer");
+          return;
+        }
+      }
+      setCursor("default");
     }
 
     // Update cursor for eraser tool
@@ -2487,6 +2533,49 @@ export default function BoardPage() {
     setEditingTextId(null);
   };
 
+  /**
+   * Handle adding a user to the board
+   */
+  const handleAddUser = (email: string) => {
+    setSharedUsers((prev) => [...prev, email]);
+  };
+
+  /**
+   * Handle deleting selected text
+   */
+  const handleDeleteText = () => {
+    if (selectedTextId) {
+      setTexts((prev) => prev.filter((text) => text.id !== selectedTextId));
+      setSelectedTextId(null);
+      setEditingTextId(null);
+      setEditingTextValue("");
+    }
+  };
+
+  /**
+   * Handle saving board - sends board data to backend
+   * TODO: Implement backend API call
+   */
+  const handleSave = async () => {
+    // Prepare board data
+    const boardData = {
+      boardId,
+      strokes,
+      rectangles,
+      circles,
+      arrows,
+      lines,
+      texts,
+    };
+
+    // TODO: Send to backend API
+    // Example: await fetch('/api/boards/save', { method: 'POST', body: JSON.stringify(boardData) })
+    
+    console.log('Saving board data:', boardData);
+    // For now, just show a placeholder message
+    alert('Board saved! (Backend integration pending)');
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <DashboardHeader />
@@ -2508,13 +2597,13 @@ export default function BoardPage() {
           <div className="relative flex w-full flex-1 flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-xl">
         <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-slate-600">
           <span className="text-slate-500">Shared with:</span>
-          {SHARED_USERS.map((user, index) => (
+          {sharedUsers.map((user, index) => (
             <span
               key={user}
               className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
             >
               {user}
-              {index < SHARED_USERS.length - 1 ? "," : ""}
+              {index < sharedUsers.length - 1 ? "," : ""}
             </span>
           ))}
         </div>
@@ -2528,6 +2617,13 @@ export default function BoardPage() {
             Undo
           </button>
           <button
+            onClick={handleSave}
+            className="absolute right-28 top-4 z-10 rounded-full bg-teal-500 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-teal-600 transition"
+          >
+            Save
+          </button>
+          <button
+            onClick={() => setIsShareModalOpen(true)}
             className="absolute right-4 top-4 z-10 rounded-full border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-700 shadow hover:border-teal-200 hover:text-teal-600 transition"
           >
             Share
@@ -2573,28 +2669,32 @@ export default function BoardPage() {
               key={value}
                   onClick={() => {
                     setActiveTool(value);
-                    // Deselect when switching tools
-                    if (value !== "rectangle") {
-                      setSelectedRectangleId(null);
-                    }
-                    if (value !== "circle") {
-                      setSelectedCircleId(null);
-                    }
-                    if (value !== "arrow") {
-                      setSelectedArrowId(null);
-                    }
-                    if (value !== "line") {
-                      setSelectedLineId(null);
-                    }
-                    if (value !== "text") {
-                      setSelectedTextId(null);
-                      setEditingTextId(null);
+                    // Deselect when switching tools (except select tool)
+                    if (value !== "select") {
+                      if (value !== "rectangle") {
+                        setSelectedRectangleId(null);
+                      }
+                      if (value !== "circle") {
+                        setSelectedCircleId(null);
+                      }
+                      if (value !== "arrow") {
+                        setSelectedArrowId(null);
+                      }
+                      if (value !== "line") {
+                        setSelectedLineId(null);
+                      }
+                      if (value !== "text") {
+                        setSelectedTextId(null);
+                        setEditingTextId(null);
+                      }
                     }
                     // Reset cursor
                     if (value === "eraser") {
                       setCursor("grab");
                     } else if (value === "text") {
                       setCursor("text");
+                    } else if (value === "select") {
+                      setCursor("default");
                     } else if (value === "pen" || value === "rectangle" || value === "circle" || value === "arrow" || value === "line") {
                       setCursor("crosshair");
                     } else {
@@ -2603,7 +2703,7 @@ export default function BoardPage() {
                   }}
               className={`w-full rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                     activeTool === value &&
-                    (value === "pen" || value === "rectangle" || value === "circle" || value === "arrow" || value === "line" || value === "eraser" || value === "text")
+                    (value === "pen" || value === "rectangle" || value === "circle" || value === "arrow" || value === "line" || value === "eraser" || value === "text" || value === "select")
                   ? "bg-teal-500 text-white shadow"
                   : "bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
@@ -2634,11 +2734,32 @@ export default function BoardPage() {
           >
             Undo Last
           </button>
-          {editingTextId && (
-            <div className="rounded-2xl border border-slate-200 p-4">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
-                Edit Text
-              </label>
+          {selectedTextId && (
+            <div className="rounded-2xl border border-slate-200 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-semibold text-slate-700">
+                  Edit Text
+                </label>
+                <button
+                  onClick={handleDeleteText}
+                  className="text-rose-600 hover:text-rose-700 transition-colors"
+                  title="Delete text"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+              </div>
               <input
                 type="text"
                 value={editingTextValue}
@@ -2646,23 +2767,46 @@ export default function BoardPage() {
                   setEditingTextValue(e.target.value);
                   setTexts((prev) =>
                     prev.map((text) =>
-                      text.id === editingTextId
+                      text.id === selectedTextId
                         ? { ...text, text: e.target.value }
                         : text
                     )
                   );
                 }}
                 onBlur={() => {
-                  setEditingTextId(null);
+                  // Keep editing mode open, just update the value
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
+                    setEditingTextId(null);
+                  } else if (e.key === "Escape") {
+                    // Restore original text value
+                    const text = texts.find((t) => t.id === selectedTextId);
+                    if (text) {
+                      setEditingTextValue(text.text);
+                    }
                     setEditingTextId(null);
                   }
                 }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 autoFocus
               />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingTextId(null);
+                  }}
+                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Done
+                </button>
+                <button
+                  onClick={handleDeleteText}
+                  className="flex-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           )}
           <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
@@ -2672,6 +2816,14 @@ export default function BoardPage() {
       </aside>
         </div>
       </div>
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        onAddUser={handleAddUser}
+        sharedUsers={sharedUsers}
+      />
     </div>
   );
 }
