@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { SharedBoardCard } from "./SharedBoardCard";
 import type { Board } from "@/types/board";
 
@@ -44,12 +45,11 @@ const dummySharedBoards: Board[] = [
 ];
 
 export function SharedBoardsContent() {
+  const router = useRouter();
   const [boards] = useState<Board[]>(dummySharedBoards);
 
   const handleOpenBoard = (boardId: string) => {
-    // TODO: Navigate to board editor
-    console.log("Opening board:", boardId);
-    // router.push(`/DrawTogether/board/${boardId}`);
+    router.push(`/DrawTogether/dashboard/sharedboards/${boardId}`);
   };
 
   const handleLeaveBoard = (boardId: string) => {
