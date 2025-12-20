@@ -1,16 +1,57 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { authService } from "@/lib/api/auth.service";
+import { ApiError } from "@/lib/api/client";
+import { useAuth } from "@/lib/hooks/useAuth";
 
 export function DashboardHeader() {
+  const router = useRouter();
+  const { clearAuth } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     // TODO: Implement search functionality
     console.log("Searching for:", searchQuery);
+  };
+
+  /**
+   * Handle logout
+   */
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    setShowUserMenu(false);
+
+    try {
+      // Call logout API
+      await authService.logout();
+      
+      // Clear local auth state
+      clearAuth();
+      
+      // Redirect to home page
+      router.push("/");
+    } catch (error) {
+      // Even if logout API fails, clear local state and redirect
+      // This ensures user is logged out on the client side
+      clearAuth();
+      
+      if (error instanceof ApiError) {
+        console.error("Logout error:", error.message);
+      } else {
+        console.error("Logout error: Unknown error occurred");
+      }
+      
+      // Redirect to home page regardless of error
+      router.push("/");
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -113,14 +154,11 @@ export function DashboardHeader() {
                 </Link>
                 <hr className="my-1 border-slate-200" />
                 <button
-                  onClick={() => {
-                    // TODO: Implement logout functionality
-                    console.log("Logout");
-                    setShowUserMenu(false);
-                  }}
-                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  onClick={handleLogout}
+                  disabled={isLoggingOut}
+                  className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Logout
+                  {isLoggingOut ? "Logging out..." : "Logout"}
                 </button>
               </div>
             </>

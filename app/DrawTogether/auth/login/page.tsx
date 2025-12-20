@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { LoginCard } from "@/components/auth/LoginCard";
 import { LandingHeader } from "@/components/layout/LandingHeader";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
   title: "Login | DrawTogether",
@@ -9,12 +10,14 @@ export const metadata: Metadata = {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-slate-50">
-      <LandingHeader />
-      <div className="flex items-center justify-center px-4 py-12">
-        <LoginCard />
+    <AuthGuard redirectIfAuthenticated={true} redirectTo="/DrawTogether/dashboard">
+      <div className="min-h-screen bg-slate-50">
+        <LandingHeader />
+        <div className="flex items-center justify-center px-4 py-12">
+          <LoginCard />
+        </div>
       </div>
-    </div>
+    </AuthGuard>
   );
 }
 

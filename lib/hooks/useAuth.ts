@@ -81,6 +81,14 @@ export function useAuth() {
     });
   };
 
+  /**
+   * Refresh authentication state
+   * Useful after login/logout to update the state
+   */
+  const refreshAuth = async () => {
+    await checkAuth();
+  };
+
   // Check authentication on mount
   useEffect(() => {
     checkAuth();
@@ -90,6 +98,7 @@ export function useAuth() {
     ...state,
     checkAuth,
     clearAuth,
+    refreshAuth,
   };
 }
 

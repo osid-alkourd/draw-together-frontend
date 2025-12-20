@@ -13,6 +13,14 @@ export interface RegisterRequest {
 }
 
 /**
+ * Login request payload
+ */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/**
  * User data returned from API
  */
 export interface User {
@@ -34,6 +42,15 @@ export interface RegisterResponse {
 }
 
 /**
+ * Login response from API
+ */
+export interface LoginResponse {
+  success: boolean;
+  message: string;
+  user: User;
+}
+
+/**
  * API error response
  */
 export interface ApiErrorResponse {
@@ -49,5 +66,14 @@ export interface GetCurrentUserResponse {
   success: boolean;
   message: string;
   user: User;
+}
+
+/**
+ * Logout response from API
+ */
+export interface LogoutResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
 }
 
