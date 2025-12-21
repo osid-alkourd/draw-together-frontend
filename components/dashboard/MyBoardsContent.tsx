@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { BoardCardWithMenu } from "./BoardCardWithMenu";
 import { CreateBoardButton } from "./CreateBoardButton";
+import { whiteboardService } from "@/lib/api/whiteboard.service";
+import { ApiError } from "@/lib/api/client";
 import type { Board } from "@/types/board";
 
-// Dummy data - in real app, this would come from an API
+// Dummy data - kept for reference but not used (data comes from API)
 const dummyBoards: Board[] = [
   {
     id: "1",
@@ -54,8 +56,57 @@ const dummyBoards: Board[] = [
 
 export function MyBoardsContent() {
   const router = useRouter();
-  const [boards] = useState<Board[]>(dummyBoards);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  /**
+   * Fetch user's whiteboards from API
+   */
+  const fetchMyWhiteboards = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await whiteboardService.getMyWhiteboards();
+
+      if (response.success && response.data) {
+        // Map backend response to Board type
+        const mappedBoards: Board[] = response.data.map((item) => ({
+          id: item.id,
+          title: item.name, // Backend returns 'name' but we need 'title'
+          lastModified: new Date(item.updated_at),
+          createdBy: "You",
+          thumbnail: null,
+        }));
+
+        setBoards(mappedBoards);
+      } else {
+        setError("Failed to load whiteboards");
+        setBoards([]);
+      }
+    } catch (err) {
+      // Handle API errors
+      if (err instanceof ApiError) {
+        if (err.statusCode === 401) {
+          setError("Please log in to view your whiteboards");
+        } else {
+          setError(err.message || "Failed to load whiteboards");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+      setBoards([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch whiteboards on component mount
+  useEffect(() => {
+    fetchMyWhiteboards();
+  }, []);
 
   const handleOpenBoard = (boardId: string) => {
     router.push(`/DrawTogether/dashboard/boards/${boardId}`);
@@ -82,6 +133,42 @@ export function MyBoardsContent() {
     }
   };
 
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
+        <div className="text-center">
+          <div className="mb-4 inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-teal-500 border-r-transparent"></div>
+          <p className="text-sm text-slate-600">Loading your boards...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md text-center">
+          <div className="mb-6 flex justify-center">
+            <svg className="h-24 w-24 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <h2 className="mb-2 text-2xl font-semibold text-slate-900">Error loading boards</h2>
+          <p className="mb-6 text-slate-600">{error}</p>
+          <button
+            onClick={fetchMyWhiteboards}
+            className="rounded-lg bg-teal-500 px-6 py-3 text-base font-semibold text-white shadow-md transition hover:bg-teal-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state
   if (boards.length === 0) {
     return (
       <div className="flex min-h-[calc(100vh-200px)] items-center justify-center px-4 py-12">

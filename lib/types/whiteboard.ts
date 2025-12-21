@@ -62,3 +62,22 @@ export interface CreateWhiteboardResponse {
   data: Whiteboard;
 }
 
+/**
+ * My whiteboard item (simplified for list view)
+ */
+export interface MyWhiteboardItem {
+  id: string;
+  name: string;
+  updated_at: string;
+}
+
+/**
+ * Get my whiteboards response from API
+ */
+export interface GetMyWhiteboardsResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: MyWhiteboardItem[];
+}
+
