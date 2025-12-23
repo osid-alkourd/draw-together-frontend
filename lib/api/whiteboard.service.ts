@@ -8,6 +8,9 @@ import type {
   CreateWhiteboardRequest,
   CreateWhiteboardResponse,
   GetMyWhiteboardsResponse,
+  GetWhiteboardResponse,
+  SaveSnapshotRequest,
+  SaveSnapshotResponse,
 } from "@/lib/types/whiteboard";
 
 /**
@@ -57,6 +60,61 @@ export class WhiteboardService {
       }
       throw new ApiError(
         "Failed to fetch whiteboards: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Get whiteboard by ID with snapshots
+   * @param whiteboardId - Whiteboard ID
+   * @returns Whiteboard with all snapshots and shapes
+   * @throws {ApiError} If fetch fails
+   */
+  async getWhiteboardById(
+    whiteboardId: string
+  ): Promise<GetWhiteboardResponse> {
+    try {
+      const response = await apiClient.get<GetWhiteboardResponse>(
+        `/whiteboards/${whiteboardId}`
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to fetch whiteboard: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Save or update snapshot for a whiteboard
+   * @param whiteboardId - Whiteboard ID
+   * @param data - Snapshot data containing all shapes and drawings
+   * @returns Saved snapshot information
+   * @throws {ApiError} If save fails
+   */
+  async saveSnapshot(
+    whiteboardId: string,
+    data: SaveSnapshotRequest
+  ): Promise<SaveSnapshotResponse> {
+    try {
+      const response = await apiClient.post<SaveSnapshotResponse>(
+        `/whiteboards/${whiteboardId}/snapshots`,
+        data
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to save snapshot: Unknown error occurred",
         0,
         error
       );

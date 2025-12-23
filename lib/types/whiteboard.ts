@@ -81,3 +81,114 @@ export interface GetMyWhiteboardsResponse {
   data: MyWhiteboardItem[];
 }
 
+/**
+ * Whiteboard snapshot data structure
+ * Contains all shapes and drawings on the whiteboard
+ */
+export interface WhiteboardSnapshotData {
+  strokes: Array<{
+    color: string;
+    width: number;
+    points: Array<{ x: number; y: number }>;
+  }>;
+  rectangles: Array<{
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    color: string;
+  }>;
+  circles: Array<{
+    id: string;
+    x: number;
+    y: number;
+    radius: number;
+    color: string;
+  }>;
+  arrows: Array<{
+    id: string;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    color: string;
+    rotation: number;
+  }>;
+  lines: Array<{
+    id: string;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    color: string;
+    rotation: number;
+  }>;
+  texts: Array<{
+    id: string;
+    x: number;
+    y: number;
+    text: string;
+    color: string;
+    fontSize: number;
+  }>;
+}
+
+/**
+ * Save snapshot request payload
+ */
+export interface SaveSnapshotRequest {
+  data: WhiteboardSnapshotData;
+}
+
+/**
+ * Save snapshot response from API
+ */
+export interface SaveSnapshotResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    id: string;
+    data: WhiteboardSnapshotData;
+    createdAt: string;
+    updatedAt: string;
+  };
+}
+
+/**
+ * Snapshot information in whiteboard response
+ */
+export interface WhiteboardSnapshot {
+  id: string;
+  data: WhiteboardSnapshotData;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Whiteboard with snapshots (full whiteboard data)
+ */
+export interface WhiteboardWithSnapshots {
+  id: string;
+  title: string;
+  description: string | null;
+  isPublic: boolean;
+  owner: WhiteboardUser;
+  collaborators: WhiteboardCollaborator[];
+  snapshots: WhiteboardSnapshot[];
+  shapes?: any[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Get whiteboard by ID response from API
+ */
+export interface GetWhiteboardResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: WhiteboardWithSnapshots | null;
+}
+
