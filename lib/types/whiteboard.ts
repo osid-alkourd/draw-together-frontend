@@ -192,3 +192,38 @@ export interface GetWhiteboardResponse {
   data: WhiteboardWithSnapshots | null;
 }
 
+/**
+ * Add collaborator request payload
+ */
+export interface AddCollaboratorRequest {
+  email: string;
+}
+
+/**
+ * Add collaborator response from API
+ */
+export interface AddCollaboratorResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    collaborator: WhiteboardCollaborator;
+  };
+}
+
+/**
+ * Remove collaborator request payload
+ */
+export interface RemoveCollaboratorRequest {
+  email: string;
+}
+
+/**
+ * Remove collaborator response from API
+ */
+export interface RemoveCollaboratorResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+}
+

@@ -5,10 +5,14 @@
 
 import { apiClient, ApiError } from "@/lib/api/client";
 import type {
+  AddCollaboratorRequest,
+  AddCollaboratorResponse,
   CreateWhiteboardRequest,
   CreateWhiteboardResponse,
   GetMyWhiteboardsResponse,
   GetWhiteboardResponse,
+  RemoveCollaboratorRequest,
+  RemoveCollaboratorResponse,
   SaveSnapshotRequest,
   SaveSnapshotResponse,
 } from "@/lib/types/whiteboard";
@@ -115,6 +119,64 @@ export class WhiteboardService {
       }
       throw new ApiError(
         "Failed to save snapshot: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Add a collaborator to a whiteboard
+   * @param whiteboardId - Whiteboard ID
+   * @param data - Collaborator data (email)
+   * @returns Added collaborator information
+   * @throws {ApiError} If add fails
+   */
+  async addCollaborator(
+    whiteboardId: string,
+    data: AddCollaboratorRequest
+  ): Promise<AddCollaboratorResponse> {
+    try {
+      const response = await apiClient.post<AddCollaboratorResponse>(
+        `/whiteboards/${whiteboardId}/collaborators`,
+        data
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to add collaborator: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Remove a collaborator from a whiteboard
+   * @param whiteboardId - Whiteboard ID
+   * @param data - Collaborator data (email)
+   * @returns Removal confirmation
+   * @throws {ApiError} If removal fails
+   */
+  async removeCollaborator(
+    whiteboardId: string,
+    data: RemoveCollaboratorRequest
+  ): Promise<RemoveCollaboratorResponse> {
+    try {
+      const response = await apiClient.delete<RemoveCollaboratorResponse>(
+        `/whiteboards/${whiteboardId}/collaborators`,
+        data
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to remove collaborator: Unknown error occurred",
         0,
         error
       );

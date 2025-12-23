@@ -8,8 +8,6 @@ import { whiteboardService } from "@/lib/api/whiteboard.service";
 import { ApiError } from "@/lib/api/client";
 import type { WhiteboardSnapshotData } from "@/lib/types/whiteboard";
 
-const SHARED_USERS = ["Ali", "Sara", "Omar"];
-
 const TOOLBAR_ITEMS = [
   { label: "Select", value: "select" },
   { label: "Pen", value: "pen" },
@@ -133,7 +131,7 @@ export default function BoardPage() {
   const [editingTextValue, setEditingTextValue] = useState<string>("");
   const [cursor, setCursor] = useState<string>("default");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  const [sharedUsers, setSharedUsers] = useState<string[]>(SHARED_USERS);
+  const [sharedUsers, setSharedUsers] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -1098,7 +1096,19 @@ export default function BoardPage() {
       const response = await whiteboardService.getWhiteboardById(boardId);
 
       if (response.success && response.data) {
-        const snapshots = response.data.snapshots || [];
+        const whiteboardData = response.data;
+        
+        // Extract collaborator emails from whiteboard data
+        if (whiteboardData.collaborators && Array.isArray(whiteboardData.collaborators)) {
+          const collaboratorEmails = whiteboardData.collaborators
+            .map((collaborator) => collaborator.user?.email)
+            .filter((email): email is string => Boolean(email));
+          setSharedUsers(collaboratorEmails);
+        } else {
+          setSharedUsers([]);
+        }
+
+        const snapshots = whiteboardData.snapshots || [];
         
         if (snapshots.length > 0) {
           // Get the latest snapshot (most recently updated)
@@ -3219,9 +3229,50 @@ export default function BoardPage() {
 
   /**
    * Handle adding a user to the board
+   * After adding, refresh the whiteboard data to get updated collaborators list
    */
-  const handleAddUser = (email: string) => {
-    setSharedUsers((prev) => [...prev, email]);
+  const handleAddUser = async (email: string) => {
+    // Add to local state immediately for better UX
+    setSharedUsers((prev) => {
+      if (prev.includes(email)) {
+        return prev;
+      }
+      return [...prev, email];
+    });
+    
+    // Optionally refresh whiteboard data to ensure we have the latest collaborators
+    // The API call in ShareModal already handles the backend, so we just update local state
+  };
+
+  /**
+   * Handle removing a user from the board
+   * Removes the collaborator from local state after successful API call
+   */
+  const handleRemoveUser = async (email: string) => {
+    try {
+      // Call backend API to remove collaborator
+      await whiteboardService.removeCollaborator(boardId, {
+        email: email.trim(),
+      });
+
+      // Remove from local state
+      setSharedUsers((prev) => prev.filter((user) => user !== email));
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.statusCode === 404) {
+          console.error("Whiteboard not found");
+        } else if (error.statusCode === 403) {
+          console.error("You don't have permission to remove collaborators");
+        } else if (error.statusCode === 400) {
+          console.error("Invalid email address");
+        } else {
+          console.error(error.message || "Failed to remove collaborator");
+        }
+      } else {
+        console.error("An unexpected error occurred while removing collaborator");
+      }
+      // Don't update UI on error - keep the user in the list
+    }
   };
 
   /**
@@ -3401,9 +3452,29 @@ export default function BoardPage() {
           {sharedUsers.map((user, index) => (
             <span
               key={user}
-              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
+              className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700"
             >
               {user}
+              <button
+                type="button"
+                onClick={() => handleRemoveUser(user)}
+                className="text-slate-400 hover:text-red-600 transition-colors"
+                aria-label="Remove collaborator"
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
               {index < sharedUsers.length - 1 ? "," : ""}
             </span>
           ))}
@@ -3643,7 +3714,9 @@ export default function BoardPage() {
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
         onAddUser={handleAddUser}
+        onRemoveUser={handleRemoveUser}
         sharedUsers={sharedUsers}
+        whiteboardId={boardId}
       />
     </div>
   );

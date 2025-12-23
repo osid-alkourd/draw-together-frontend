@@ -1,17 +1,30 @@
 "use client";
 
 import { useState } from "react";
+import { whiteboardService } from "@/lib/api/whiteboard.service";
+import { ApiError } from "@/lib/api/client";
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddUser: (email: string) => void;
+  onRemoveUser: (email: string) => void;
   sharedUsers?: string[];
+  whiteboardId: string;
 }
 
-export function ShareModal({ isOpen, onClose, onAddUser, sharedUsers = [] }: ShareModalProps) {
+export function ShareModal({
+  isOpen,
+  onClose,
+  onAddUser,
+  onRemoveUser,
+  sharedUsers = [],
+  whiteboardId,
+}: ShareModalProps) {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [removingEmail, setRemovingEmail] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -20,27 +33,100 @@ export function ShareModal({ isOpen, onClose, onAddUser, sharedUsers = [] }: Sha
     return emailRegex.test(email);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     if (!email.trim()) {
       setError("Please enter an email address");
+      setIsLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
       setError("Please enter a valid email address");
+      setIsLoading(false);
       return;
     }
 
     if (sharedUsers.includes(email)) {
       setError("This user is already added to the board");
+      setIsLoading(false);
       return;
     }
 
-    onAddUser(email);
-    setEmail("");
+    try {
+      // Call backend API to add collaborator
+      const response = await whiteboardService.addCollaborator(whiteboardId, {
+        email: email.trim(),
+      });
+
+      if (response.success) {
+        // Successfully added collaborator
+        onAddUser(email.trim());
+        setEmail("");
+      } else {
+        setError(response.message || "Failed to add collaborator");
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.statusCode === 404) {
+          setError("Whiteboard not found");
+        } else if (error.statusCode === 403) {
+          setError("You don't have permission to add collaborators");
+        } else if (error.statusCode === 400) {
+          setError(error.message || "Invalid email address or user not found");
+        } else if (error.statusCode === 409) {
+          setError("This user is already a collaborator");
+        } else {
+          setError(error.message || "Failed to add collaborator");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Handle removing a collaborator from the whiteboard
+   * Calls the backend API to remove the collaborator
+   */
+  const handleRemoveUser = async (email: string) => {
+    setRemovingEmail(email);
+    setError("");
+
+    try {
+      // Call backend API to remove collaborator
+      const response = await whiteboardService.removeCollaborator(whiteboardId, {
+        email: email.trim(),
+      });
+
+      if (response.success) {
+        // Successfully removed collaborator - update parent component state
+        onRemoveUser(email.trim());
+      } else {
+        setError(response.message || "Failed to remove collaborator");
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.statusCode === 404) {
+          setError("Whiteboard not found");
+        } else if (error.statusCode === 403) {
+          setError("You don't have permission to remove collaborators");
+        } else if (error.statusCode === 400) {
+          setError(error.message || "Invalid email address");
+        } else {
+          setError(error.message || "Failed to remove collaborator");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setRemovingEmail(null);
+    }
   };
 
   const handleClose = () => {
@@ -127,9 +213,17 @@ export function ShareModal({ isOpen, onClose, onAddUser, sharedUsers = [] }: Sha
             </button>
             <button
               type="submit"
-              className="flex-1 rounded-2xl bg-teal-500 px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-teal-600"
+              disabled={isLoading}
+              className="flex-1 rounded-2xl bg-teal-500 px-4 py-3 text-sm font-semibold text-white shadow transition hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Add User
+              {isLoading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Adding...
+                </>
+              ) : (
+                "Add User"
+              )}
             </button>
           </div>
         </form>
@@ -147,6 +241,31 @@ export function ShareModal({ isOpen, onClose, onAddUser, sharedUsers = [] }: Sha
                   className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2"
                 >
                   <span className="text-sm text-slate-700">{user}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveUser(user)}
+                    disabled={removingEmail === user}
+                    className="text-slate-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Remove collaborator"
+                  >
+                    {removingEmail === user ? (
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-slate-400 border-t-transparent"></div>
+                    ) : (
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    )}
+                  </button>
                 </div>
               ))}
             </div>
