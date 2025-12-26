@@ -10,6 +10,7 @@ import type {
   CreateWhiteboardRequest,
   CreateWhiteboardResponse,
   GetMyWhiteboardsResponse,
+  GetSharedWithMeResponse,
   GetWhiteboardResponse,
   RemoveCollaboratorRequest,
   RemoveCollaboratorResponse,
@@ -64,6 +65,29 @@ export class WhiteboardService {
       }
       throw new ApiError(
         "Failed to fetch whiteboards: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Get all whiteboards shared with the current authenticated user
+   * @returns List of whiteboards shared with the user
+   * @throws {ApiError} If fetch fails
+   */
+  async getSharedWithMe(): Promise<GetSharedWithMeResponse> {
+    try {
+      const response = await apiClient.get<GetSharedWithMeResponse>(
+        "/whiteboards/shared-with-me"
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to fetch shared whiteboards: Unknown error occurred",
         0,
         error
       );

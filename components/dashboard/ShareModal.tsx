@@ -65,7 +65,7 @@ export function ShareModal({
       if (response.success) {
         // Successfully added collaborator
         onAddUser(email.trim());
-        setEmail("");
+    setEmail("");
       } else {
         setError(response.message || "Failed to add collaborator");
       }

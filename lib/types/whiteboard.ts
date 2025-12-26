@@ -82,6 +82,28 @@ export interface GetMyWhiteboardsResponse {
 }
 
 /**
+ * Shared whiteboard item (simplified for list view)
+ */
+export interface SharedWhiteboardItem {
+  id: string;
+  title: string;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
+  ownerName: string;
+}
+
+/**
+ * Get shared with me whiteboards response from API
+ */
+export interface GetSharedWithMeResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: SharedWhiteboardItem[];
+}
+
+/**
  * Whiteboard snapshot data structure
  * Contains all shapes and drawings on the whiteboard
  */
