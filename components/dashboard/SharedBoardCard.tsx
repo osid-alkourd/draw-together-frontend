@@ -6,9 +6,10 @@ interface SharedBoardCardProps {
   board: Board;
   onOpen: () => void;
   onLeave: () => void;
+  isLeaving?: boolean;
 }
 
-export function SharedBoardCard({ board, onOpen, onLeave }: SharedBoardCardProps) {
+export function SharedBoardCard({ board, onOpen, onLeave, isLeaving = false }: SharedBoardCardProps) {
   const formatDate = (date: Date) => {
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -69,9 +70,17 @@ export function SharedBoardCard({ board, onOpen, onLeave }: SharedBoardCardProps
           </button>
           <button
             onClick={onLeave}
-            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2"
+            disabled={isLeaving}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-500 focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
-            Leave Board
+            {isLeaving ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent"></div>
+                Leaving...
+              </>
+            ) : (
+              "Leave Board"
+            )}
           </button>
         </div>
       </div>

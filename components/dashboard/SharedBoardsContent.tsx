@@ -12,6 +12,7 @@ export function SharedBoardsContent() {
   const [boards, setBoards] = useState<Board[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [leavingBoardId, setLeavingBoardId] = useState<string | null>(null);
 
   /**
    * Fetch shared whiteboards from API
@@ -64,10 +65,52 @@ export function SharedBoardsContent() {
     router.push(`/DrawTogether/dashboard/sharedboards/${boardId}`);
   };
 
-  const handleLeaveBoard = (boardId: string) => {
-    // TODO: Implement leave board functionality
-    console.log("Leaving board:", boardId);
-    // Show confirmation dialog and remove from shared boards
+  /**
+   * Handle leaving a shared whiteboard
+   * Calls the backend API to leave the whiteboard and removes it from the list
+   */
+  const handleLeaveBoard = async (boardId: string) => {
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      "Are you sure you want to leave this whiteboard? You will no longer have access to it."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setLeavingBoardId(boardId);
+    setError(null);
+
+    try {
+      const response = await whiteboardService.leaveWhiteboard(boardId);
+
+      if (response.success) {
+        // Remove the board from the list
+        setBoards((prev) => prev.filter((board) => board.id !== boardId));
+      } else {
+        setError(response.message || "Failed to leave whiteboard");
+      }
+    } catch (err) {
+      // Handle API errors
+      if (err instanceof ApiError) {
+        if (err.statusCode === 404) {
+          setError("Whiteboard not found");
+        } else if (err.statusCode === 403) {
+          setError("You don't have permission to leave this whiteboard");
+        } else if (err.statusCode === 400) {
+          setError(err.message || "Invalid request");
+        } else if (err.statusCode === 409) {
+          setError("You are not a collaborator on this whiteboard");
+        } else {
+          setError(err.message || "Failed to leave whiteboard");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setLeavingBoardId(null);
+    }
   };
 
   // Loading state
@@ -88,8 +131,8 @@ export function SharedBoardsContent() {
     );
   }
 
-  // Error state
-  if (error) {
+  // Error state (only show if not leaving a board)
+  if (error && !leavingBoardId) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-8">
         <div className="mb-8">
@@ -148,6 +191,13 @@ export function SharedBoardsContent() {
         <p className="mt-2 text-slate-600">Boards that have been shared with you by other users</p>
       </div>
 
+      {/* Error message for leave operation */}
+      {error && leavingBoardId && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {boards.map((board) => (
           <SharedBoardCard
@@ -155,6 +205,7 @@ export function SharedBoardsContent() {
             board={board}
             onOpen={() => handleOpenBoard(board.id)}
             onLeave={() => handleLeaveBoard(board.id)}
+            isLeaving={leavingBoardId === board.id}
           />
         ))}
       </div>

@@ -9,9 +9,12 @@ import type {
   AddCollaboratorResponse,
   CreateWhiteboardRequest,
   CreateWhiteboardResponse,
+  DeleteWhiteboardResponse,
+  DuplicateWhiteboardResponse,
   GetMyWhiteboardsResponse,
   GetSharedWithMeResponse,
   GetWhiteboardResponse,
+  LeaveWhiteboardResponse,
   RemoveCollaboratorRequest,
   RemoveCollaboratorResponse,
   SaveSnapshotRequest,
@@ -201,6 +204,84 @@ export class WhiteboardService {
       }
       throw new ApiError(
         "Failed to remove collaborator: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Leave a shared whiteboard
+   * @param whiteboardId - Whiteboard ID
+   * @returns Leave confirmation
+   * @throws {ApiError} If leave fails
+   */
+  async leaveWhiteboard(
+    whiteboardId: string
+  ): Promise<LeaveWhiteboardResponse> {
+    try {
+      const response = await apiClient.delete<LeaveWhiteboardResponse>(
+        `/whiteboards/${whiteboardId}/leave`
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to leave whiteboard: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Duplicate a whiteboard
+   * @param whiteboardId - Whiteboard ID to duplicate
+   * @returns Duplicated whiteboard information
+   * @throws {ApiError} If duplication fails
+   */
+  async duplicateWhiteboard(
+    whiteboardId: string
+  ): Promise<DuplicateWhiteboardResponse> {
+    try {
+      const response = await apiClient.post<DuplicateWhiteboardResponse>(
+        `/whiteboards/${whiteboardId}/duplicate`
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to duplicate whiteboard: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Delete a whiteboard
+   * @param whiteboardId - Whiteboard ID to delete
+   * @returns Deletion confirmation
+   * @throws {ApiError} If deletion fails
+   */
+  async deleteWhiteboard(
+    whiteboardId: string
+  ): Promise<DeleteWhiteboardResponse> {
+    try {
+      const response = await apiClient.delete<DeleteWhiteboardResponse>(
+        `/whiteboards/${whiteboardId}`
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to delete whiteboard: Unknown error occurred",
         0,
         error
       );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Board } from "@/types/board";
 
 interface BoardCardWithMenuProps {
@@ -9,6 +9,7 @@ interface BoardCardWithMenuProps {
   onMenuAction: (action: string) => void;
   isMenuOpen: boolean;
   onMenuToggle: () => void;
+  isDuplicating?: boolean;
 }
 
 export function BoardCardWithMenu({
@@ -17,8 +18,10 @@ export function BoardCardWithMenu({
   onMenuAction,
   isMenuOpen,
   onMenuToggle,
+  isDuplicating = false,
 }: BoardCardWithMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -56,8 +59,64 @@ export function BoardCardWithMenu({
     }
   };
 
+  /**
+   * Handle copying the whiteboard link to clipboard
+   */
+  const handleCopyLink = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      // Construct the whiteboard URL
+      const whiteboardUrl = `${window.location.origin}/DrawTogether/dashboard/boards/${board.id}`;
+      
+      // Copy to clipboard
+      await navigator.clipboard.writeText(whiteboardUrl);
+      
+      // Show feedback
+      setLinkCopied(true);
+      onMenuToggle(); // Close the menu
+      
+      // Reset feedback after 2 seconds
+      setTimeout(() => {
+        setLinkCopied(false);
+      }, 2000);
+    } catch (err) {
+      console.error("Failed to copy link:", err);
+      // Fallback for older browsers
+      const whiteboardUrl = `${window.location.origin}/DrawTogether/dashboard/boards/${board.id}`;
+      const textArea = document.createElement("textarea");
+      textArea.value = whiteboardUrl;
+      textArea.style.position = "fixed";
+      textArea.style.opacity = "0";
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+        document.execCommand("copy");
+        setLinkCopied(true);
+        onMenuToggle();
+        setTimeout(() => {
+          setLinkCopied(false);
+        }, 2000);
+      } catch (fallbackErr) {
+        console.error("Fallback copy failed:", fallbackErr);
+      }
+      document.body.removeChild(textArea);
+    }
+  };
+
   return (
     <div className="group relative rounded-lg border border-slate-200 bg-white shadow-sm transition-all hover:border-teal-300 hover:shadow-md">
+      {/* Toast notification for copied link */}
+      {linkCopied && (
+        <div className="absolute top-4 left-1/2 z-30 -translate-x-1/2 rounded-lg bg-green-500 px-4 py-2 text-sm font-medium text-white shadow-lg animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Link copied!
+          </div>
+        </div>
+      )}
       {/* Thumbnail */}
       <div className="aspect-video w-full overflow-hidden rounded-t-lg bg-gradient-to-br from-teal-100 to-blue-100">
         <div className="flex h-full w-full items-center justify-center">
@@ -102,22 +161,27 @@ export function BoardCardWithMenu({
                   Rename
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onMenuAction("share");
-                  }}
+                  onClick={handleCopyLink}
                   className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 transition-colors"
                 >
-                  Share
+                  Copy Link
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onMenuAction("duplicate");
                   }}
-                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 transition-colors"
+                  disabled={isDuplicating}
+                  className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
-                  Duplicate
+                  {isDuplicating ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-400 border-t-transparent"></div>
+                      Duplicating...
+                    </>
+                  ) : (
+                    "Duplicate"
+                  )}
                 </button>
                 <hr className="my-1 border-slate-200" />
                 <button

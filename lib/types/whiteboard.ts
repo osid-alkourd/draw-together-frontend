@@ -249,3 +249,31 @@ export interface RemoveCollaboratorResponse {
   message: string;
 }
 
+/**
+ * Leave whiteboard response from API
+ */
+export interface LeaveWhiteboardResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+}
+
+/**
+ * Duplicate whiteboard response from API
+ */
+export interface DuplicateWhiteboardResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: Whiteboard;
+}
+
+/**
+ * Delete whiteboard response from API
+ */
+export interface DeleteWhiteboardResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+}
+
