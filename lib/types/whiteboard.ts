@@ -277,3 +277,20 @@ export interface DeleteWhiteboardResponse {
   message: string;
 }
 
+/**
+ * Rename whiteboard request payload
+ */
+export interface RenameWhiteboardRequest {
+  title: string;
+}
+
+/**
+ * Rename whiteboard response from API
+ */
+export interface RenameWhiteboardResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: Whiteboard;
+}
+

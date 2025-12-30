@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { DashboardContent } from "@/components/dashboard/DashboardContent";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 
 export const metadata: Metadata = {
   title: "Dashboard | DrawTogether",
@@ -9,9 +10,11 @@ export const metadata: Metadata = {
 
 export default function DashboardPage() {
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <DashboardHeader />
-      <DashboardContent />
-    </div>
+    <AuthGuard redirectTo="/DrawTogether/auth/login">
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        <DashboardHeader />
+        <DashboardContent />
+      </div>
+    </AuthGuard>
   );
 }

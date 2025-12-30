@@ -17,6 +17,8 @@ import type {
   LeaveWhiteboardResponse,
   RemoveCollaboratorRequest,
   RemoveCollaboratorResponse,
+  RenameWhiteboardRequest,
+  RenameWhiteboardResponse,
   SaveSnapshotRequest,
   SaveSnapshotResponse,
 } from "@/lib/types/whiteboard";
@@ -282,6 +284,35 @@ export class WhiteboardService {
       }
       throw new ApiError(
         "Failed to delete whiteboard: Unknown error occurred",
+        0,
+        error
+      );
+    }
+  }
+
+  /**
+   * Rename a whiteboard
+   * @param whiteboardId - Whiteboard ID to rename
+   * @param data - Rename data (title)
+   * @returns Updated whiteboard information
+   * @throws {ApiError} If rename fails
+   */
+  async renameWhiteboard(
+    whiteboardId: string,
+    data: RenameWhiteboardRequest
+  ): Promise<RenameWhiteboardResponse> {
+    try {
+      const response = await apiClient.patch<RenameWhiteboardResponse>(
+        `/whiteboards/${whiteboardId}/rename`,
+        data
+      );
+      return response;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        "Failed to rename whiteboard: Unknown error occurred",
         0,
         error
       );

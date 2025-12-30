@@ -65,6 +65,7 @@ export function MyBoardsContent() {
   const [duplicatingBoardId, setDuplicatingBoardId] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [deletingBoardId, setDeletingBoardId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -159,13 +160,12 @@ export function MyBoardsContent() {
 
   /**
    * Handle renaming a whiteboard
-   * For now, this is just a design (no backend endpoint yet)
+   * Updates the local state after successful rename
    */
   const handleRenameBoard = (newName: string) => {
     if (!renamingBoardId) return;
 
-    // TODO: Call backend API to rename the whiteboard
-    // For now, just update local state as a design preview
+    // Update local state with the new name
     setBoards((prevBoards) =>
       prevBoards.map((board) =>
         board.id === renamingBoardId
@@ -175,6 +175,7 @@ export function MyBoardsContent() {
     );
 
     setRenamingBoardId(null);
+    setRenameError(null);
   };
 
   /**
@@ -309,6 +310,20 @@ export function MyBoardsContent() {
         </div>
       )}
 
+      {/* Error message for rename operation */}
+      {renameError && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {renameError}
+          <button
+            onClick={() => setRenameError(null)}
+            className="ml-2 text-red-600 hover:text-red-800"
+            aria-label="Dismiss error"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Error message for delete operation */}
       {deleteError && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -341,10 +356,14 @@ export function MyBoardsContent() {
       {renamingBoardId && (
         <RenameBoardModal
           isOpen={!!renamingBoardId}
-          onClose={() => setRenamingBoardId(null)}
+          onClose={() => {
+            setRenamingBoardId(null);
+            setRenameError(null);
+          }}
           currentName={
             boards.find((board) => board.id === renamingBoardId)?.title || ""
           }
+          whiteboardId={renamingBoardId}
           onSave={handleRenameBoard}
         />
       )}

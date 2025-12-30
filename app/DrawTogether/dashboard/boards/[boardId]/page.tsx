@@ -4,6 +4,7 @@ import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { ShareModal } from "@/components/dashboard/ShareModal";
+import { AuthGuard } from "@/components/auth/AuthGuard";
 import { whiteboardService } from "@/lib/api/whiteboard.service";
 import { ApiError } from "@/lib/api/client";
 import type { WhiteboardSnapshotData } from "@/lib/types/whiteboard";
@@ -137,6 +138,7 @@ export default function BoardPage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [whiteboardName, setWhiteboardName] = useState<string | null>(null);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const currentRectRef = useRef<Rectangle | null>(null);
   const currentCircleRef = useRef<Circle | null>(null);
@@ -1097,6 +1099,13 @@ export default function BoardPage() {
 
       if (response.success && response.data) {
         const whiteboardData = response.data;
+        
+        // Extract whiteboard name/title
+        if (whiteboardData.title) {
+          setWhiteboardName(whiteboardData.title);
+        } else {
+          setWhiteboardName(null);
+        }
         
         // Extract collaborator emails from whiteboard data
         if (whiteboardData.collaborators && Array.isArray(whiteboardData.collaborators)) {
@@ -3390,54 +3399,59 @@ export default function BoardPage() {
   // Show loading state while fetching whiteboard data
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        <DashboardHeader />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-solid border-teal-500 border-r-transparent"></div>
-            <p className="mt-4 text-sm text-slate-600">Loading whiteboard...</p>
+      <AuthGuard redirectTo="/DrawTogether/auth/login">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <DashboardHeader />
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-solid border-teal-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-600">Loading whiteboard...</p>
+            </div>
           </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   // Show error state if loading failed
   if (loadError) {
     return (
-      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-        <DashboardHeader />
-        <div className="flex min-h-[60vh] items-center justify-center">
-          <div className="text-center">
-            <div className="mx-auto mb-4 text-red-500">
-              <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+      <AuthGuard redirectTo="/DrawTogether/auth/login">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <DashboardHeader />
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 text-red-500">
+                <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-lg font-semibold text-slate-900">Error loading whiteboard</p>
+              <p className="mt-2 text-sm text-red-600">{loadError}</p>
+              <button
+                onClick={loadWhiteboardData}
+                className="mt-4 rounded-lg bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition"
+              >
+                Try Again
+              </button>
             </div>
-            <p className="text-lg font-semibold text-slate-900">Error loading whiteboard</p>
-            <p className="mt-2 text-sm text-red-600">{loadError}</p>
-            <button
-              onClick={loadWhiteboardData}
-              className="mt-4 rounded-lg bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition"
-            >
-              Try Again
-            </button>
           </div>
         </div>
-      </div>
+      </AuthGuard>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <DashboardHeader />
-      <div className="px-6 py-8">
+    <AuthGuard redirectTo="/DrawTogether/auth/login">
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        <DashboardHeader />
+        <div className="px-6 py-8">
         <div className="mb-6">
           <p className="text-xs uppercase tracking-[0.3em] text-teal-500">
             Whiteboard
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-            Board #{boardId}
+            {whiteboardName ? `board: ${whiteboardName}` : `Board #${boardId}`}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             Shared workspace to sketch ideas and collaborate with your team.
@@ -3718,6 +3732,7 @@ export default function BoardPage() {
         sharedUsers={sharedUsers}
         whiteboardId={boardId}
       />
-    </div>
+      </div>
+    </AuthGuard>
   );
 }

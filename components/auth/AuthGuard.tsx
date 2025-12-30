@@ -18,6 +18,8 @@ interface AuthGuardProps {
   redirectIfAuthenticated?: boolean;
   /**
    * Path to redirect to if condition is met
+   * For protected pages (redirectIfAuthenticated=false), this is where unauthenticated users go
+   * For auth pages (redirectIfAuthenticated=true), this is where authenticated users go
    */
   redirectTo?: string;
   /**
@@ -36,12 +38,18 @@ interface AuthGuardProps {
  */
 export function AuthGuard({
   redirectIfAuthenticated = false,
-  redirectTo = "/DrawTogether/dashboard",
+  redirectTo,
   loadingComponent,
   children,
 }: AuthGuardProps) {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Set default redirect path based on redirectIfAuthenticated flag
+  const defaultRedirectTo = redirectIfAuthenticated 
+    ? "/DrawTogether/dashboard" 
+    : "/DrawTogether/auth/login";
+  const finalRedirectTo = redirectTo || defaultRedirectTo;
 
   useEffect(() => {
     // Wait for auth check to complete
@@ -51,9 +59,16 @@ export function AuthGuard({
 
     // If redirectIfAuthenticated is true and user is authenticated, redirect
     if (redirectIfAuthenticated && isAuthenticated) {
-      router.replace(redirectTo);
+      router.replace(finalRedirectTo);
+      return;
     }
-  }, [isAuthenticated, isLoading, redirectIfAuthenticated, redirectTo, router]);
+
+    // If redirectIfAuthenticated is false and user is NOT authenticated, redirect to login
+    if (!redirectIfAuthenticated && !isAuthenticated) {
+      router.replace(finalRedirectTo);
+      return;
+    }
+  }, [isAuthenticated, isLoading, redirectIfAuthenticated, finalRedirectTo, router]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -72,6 +87,12 @@ export function AuthGuard({
   // If redirectIfAuthenticated is true and user is authenticated, don't render children
   // (redirect will happen in useEffect)
   if (redirectIfAuthenticated && isAuthenticated) {
+    return null;
+  }
+
+  // If redirectIfAuthenticated is false and user is NOT authenticated, don't render children
+  // (redirect will happen in useEffect)
+  if (!redirectIfAuthenticated && !isAuthenticated) {
     return null;
   }
 

@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { whiteboardService } from "@/lib/api/whiteboard.service";
+import { ApiError } from "@/lib/api/client";
 
 interface RenameBoardModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentName: string;
+  whiteboardId: string;
   onSave: (newName: string) => void;
 }
 
@@ -13,50 +16,92 @@ export function RenameBoardModal({
   isOpen,
   onClose,
   currentName,
+  whiteboardId,
   onSave,
 }: RenameBoardModalProps) {
   const [boardName, setBoardName] = useState(currentName);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Update board name when currentName changes (e.g., when modal opens with different board)
   useEffect(() => {
     if (isOpen) {
       setBoardName(currentName);
       setError("");
+      setIsLoading(false);
     }
   }, [isOpen, currentName]);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setIsLoading(true);
 
     const trimmedName = boardName.trim();
 
     if (!trimmedName) {
       setError("Board name cannot be empty");
+      setIsLoading(false);
       return;
     }
 
-    if (trimmedName.length > 100) {
-      setError("Board name must be 100 characters or less");
+    if (trimmedName.length > 255) {
+      setError("Board name must be 255 characters or less");
+      setIsLoading(false);
       return;
     }
 
-    // For now, just close the modal (backend endpoint will be added later)
-    onSave(trimmedName);
-    onClose();
+    // Don't make API call if name hasn't changed
+    if (trimmedName === currentName.trim()) {
+      onClose();
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await whiteboardService.renameWhiteboard(whiteboardId, {
+        title: trimmedName,
+      });
+
+      if (response.success && response.data) {
+        // Call the parent's onSave callback with the new name
+        onSave(trimmedName);
+        onClose();
+      } else {
+        setError(response.message || "Failed to rename whiteboard");
+      }
+    } catch (err) {
+      // Handle API errors
+      if (err instanceof ApiError) {
+        if (err.statusCode === 404) {
+          setError("Whiteboard not found");
+        } else if (err.statusCode === 403) {
+          setError("You don't have permission to rename this whiteboard");
+        } else if (err.statusCode === 400) {
+          setError(err.message || "Invalid request");
+        } else {
+          setError(err.message || "Failed to rename whiteboard");
+        }
+      } else {
+        setError("An unexpected error occurred");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
-    setBoardName(currentName);
-    setError("");
-    onClose();
+    if (!isLoading) {
+      setBoardName(currentName);
+      setError("");
+      onClose();
+    }
   };
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget && !isLoading) {
       handleCancel();
     }
   };
@@ -93,7 +138,8 @@ export function RenameBoardModal({
                 setError("");
               }}
               placeholder="Enter board name"
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-0"
+              disabled={isLoading}
+              className="w-full rounded-lg border border-slate-300 px-4 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
               autoFocus
             />
             {error && (
@@ -106,15 +152,24 @@ export function RenameBoardModal({
             <button
               type="button"
               onClick={handleCancel}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+              disabled={isLoading}
+              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+              disabled={isLoading}
+              className="rounded-lg bg-teal-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Save
+              {isLoading ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
             </button>
           </div>
         </form>

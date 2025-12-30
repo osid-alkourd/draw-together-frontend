@@ -3,6 +3,9 @@
 import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/DashboardHeader";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { whiteboardService } from "@/lib/api/whiteboard.service";
+import { ApiError } from "@/lib/api/client";
 
 const SHARED_USERS = ["Ali", "Sara", "Omar"];
 
@@ -129,6 +132,9 @@ export default function SharedBoardPage() {
   const [editingTextValue, setEditingTextValue] = useState<string>("");
   const [cursor, setCursor] = useState<string>("default");
   const [sharedUsers] = useState<string[]>(SHARED_USERS);
+  const [whiteboardName, setWhiteboardName] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const currentRectRef = useRef<Rectangle | null>(null);
   const currentCircleRef = useRef<Circle | null>(null);
@@ -1070,6 +1076,53 @@ export default function SharedBoardPage() {
     canvas.height = rect.height;
     redrawCanvas();
   }, [redrawCanvas]);
+
+  /**
+   * Load whiteboard data from backend and extract name
+   */
+  const loadWhiteboardData = useCallback(async () => {
+    if (!boardId || boardId === "board") {
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const response = await whiteboardService.getWhiteboardById(boardId);
+
+      if (response.success && response.data) {
+        const whiteboardData = response.data;
+        
+        // Extract whiteboard name/title
+        if (whiteboardData.title) {
+          setWhiteboardName(whiteboardData.title);
+        } else {
+          setWhiteboardName(null);
+        }
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        if (error.statusCode === 404) {
+          setLoadError("Whiteboard not found");
+        } else if (error.statusCode === 403) {
+          setLoadError("You don't have permission to access this whiteboard");
+        } else {
+          setLoadError(error.message || "Failed to load whiteboard");
+        }
+      } else {
+        setLoadError("An unexpected error occurred while loading whiteboard");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [boardId]);
+
+  // Load whiteboard data when component mounts or boardId changes
+  useEffect(() => {
+    loadWhiteboardData();
+  }, [loadWhiteboardData]);
 
   // Resize canvas on mount and window resize
   useEffect(() => {
@@ -2568,15 +2621,16 @@ export default function SharedBoardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <DashboardHeader />
-      <div className="px-6 py-8">
+    <AuthGuard redirectTo="/DrawTogether/auth/login">
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        <DashboardHeader />
+        <div className="px-6 py-8">
         <div className="mb-6">
           <p className="text-xs uppercase tracking-[0.3em] text-teal-500">
             Whiteboard
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-slate-900">
-            Board #{boardId}
+            {whiteboardName ? `board: ${whiteboardName}` : `Board #${boardId}`}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
             This board is shared with you. You can view and collaborate on it.
@@ -2801,7 +2855,8 @@ export default function SharedBoardPage() {
       </aside>
         </div>
       </div>
-    </div>
+      </div>
+    </AuthGuard>
   );
 }
 
