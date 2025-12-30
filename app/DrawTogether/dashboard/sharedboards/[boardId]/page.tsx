@@ -6,8 +6,7 @@ import { DashboardHeader } from "@/components/layout/DashboardHeader";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { whiteboardService } from "@/lib/api/whiteboard.service";
 import { ApiError } from "@/lib/api/client";
-
-const SHARED_USERS = ["Ali", "Sara", "Omar"];
+import type { WhiteboardSnapshotData } from "@/lib/types/whiteboard";
 
 const TOOLBAR_ITEMS = [
   { label: "Select", value: "select" },
@@ -131,10 +130,13 @@ export default function SharedBoardPage() {
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [editingTextValue, setEditingTextValue] = useState<string>("");
   const [cursor, setCursor] = useState<string>("default");
-  const [sharedUsers] = useState<string[]>(SHARED_USERS);
+  const [sharedUsers, setSharedUsers] = useState<string[]>([]);
   const [whiteboardName, setWhiteboardName] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const currentRectRef = useRef<Rectangle | null>(null);
   const currentCircleRef = useRef<Circle | null>(null);
@@ -1078,7 +1080,8 @@ export default function SharedBoardPage() {
   }, [redrawCanvas]);
 
   /**
-   * Load whiteboard data from backend and extract name
+   * Load whiteboard data from backend and restore shapes
+   * Fetches the whiteboard with snapshots and restores all saved shapes
    */
   const loadWhiteboardData = useCallback(async () => {
     if (!boardId || boardId === "board") {
@@ -1100,6 +1103,54 @@ export default function SharedBoardPage() {
           setWhiteboardName(whiteboardData.title);
         } else {
           setWhiteboardName(null);
+        }
+
+        // Extract collaborator emails
+        if (whiteboardData.collaborators && Array.isArray(whiteboardData.collaborators)) {
+          const collaboratorEmails = whiteboardData.collaborators.map(
+            (collab) => collab.user?.email || ""
+          ).filter((email) => email !== "");
+          setSharedUsers(collaboratorEmails);
+        } else {
+          setSharedUsers([]);
+        }
+
+        const snapshots = whiteboardData.snapshots || [];
+        
+        if (snapshots.length > 0) {
+          // Get the latest snapshot (most recently updated)
+          const latestSnapshot = [...snapshots].sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0];
+
+          if (latestSnapshot?.data) {
+            const snapshotData = latestSnapshot.data;
+
+            // Restore all shape types from snapshot
+            if (snapshotData.strokes && Array.isArray(snapshotData.strokes)) {
+              setStrokes(snapshotData.strokes);
+            }
+
+            if (snapshotData.rectangles && Array.isArray(snapshotData.rectangles)) {
+              setRectangles(snapshotData.rectangles);
+            }
+
+            if (snapshotData.circles && Array.isArray(snapshotData.circles)) {
+              setCircles(snapshotData.circles);
+            }
+
+            if (snapshotData.arrows && Array.isArray(snapshotData.arrows)) {
+              setArrows(snapshotData.arrows);
+            }
+
+            if (snapshotData.lines && Array.isArray(snapshotData.lines)) {
+              setLines(snapshotData.lines);
+            }
+
+            if (snapshotData.texts && Array.isArray(snapshotData.texts)) {
+              setTexts(snapshotData.texts);
+            }
+          }
         }
       }
     } catch (error) {
@@ -1181,11 +1232,283 @@ export default function SharedBoardPage() {
           setSelectedCircleId(null);
           setSelectedArrowId(null);
           setSelectedLineId(null);
+          // Start move interaction
+          interactionRef.current = {
+            type: "move",
+            rectangleId: null,
+            circleId: null,
+            arrowId: null,
+            lineId: null,
+            textId: text.id,
+            startPoint: point,
+            startRect: null,
+            startCircle: null,
+            startArrow: null,
+            startLine: null,
+            startText: { ...text },
+            handle: null,
+          };
           return;
         }
       }
-      // Check other shapes...
-      // For now, just deselect everything if clicking empty space
+
+      // Check rectangles (from last to first for topmost selection)
+      for (let i = rectangles.length - 1; i >= 0; i--) {
+        const rect = rectangles[i];
+        if (isPointInRectangle(point, rect)) {
+          setSelectedRectangleId(rect.id);
+          // Clear other selections
+          setSelectedCircleId(null);
+          setSelectedArrowId(null);
+          setSelectedLineId(null);
+          setSelectedTextId(null);
+          setEditingTextId(null);
+          // Check for resize handle
+          const handle = getResizeHandle(point, rect);
+          if (handle) {
+            interactionRef.current = {
+              type: "resize",
+              rectangleId: rect.id,
+              circleId: null,
+              arrowId: null,
+              lineId: null,
+              textId: null,
+              startPoint: point,
+              startRect: { ...rect },
+              startCircle: null,
+              startArrow: null,
+              startLine: null,
+              startText: null,
+              handle,
+            };
+          } else {
+            // Start move interaction
+            interactionRef.current = {
+              type: "move",
+              rectangleId: rect.id,
+              circleId: null,
+              arrowId: null,
+              lineId: null,
+              textId: null,
+              startPoint: point,
+              startRect: { ...rect },
+              startCircle: null,
+              startArrow: null,
+              startLine: null,
+              startText: null,
+              handle: null,
+            };
+          }
+          return;
+        }
+      }
+
+      // Check circles (from last to first for topmost selection)
+      for (let i = circles.length - 1; i >= 0; i--) {
+        const circle = circles[i];
+        if (isPointInCircle(point, circle)) {
+          setSelectedCircleId(circle.id);
+          // Clear other selections
+          setSelectedRectangleId(null);
+          setSelectedArrowId(null);
+          setSelectedLineId(null);
+          setSelectedTextId(null);
+          setEditingTextId(null);
+          // Check for resize handle (edge)
+          const handle = getCircleResizeHandle(point, circle);
+          if (handle) {
+            interactionRef.current = {
+              type: "resize",
+              rectangleId: null,
+              circleId: circle.id,
+              arrowId: null,
+              lineId: null,
+              textId: null,
+              startPoint: point,
+              startRect: null,
+              startCircle: { ...circle },
+              startArrow: null,
+              startLine: null,
+              startText: null,
+              handle,
+            };
+          } else {
+            // Start move interaction
+            interactionRef.current = {
+              type: "move",
+              rectangleId: null,
+              circleId: circle.id,
+              arrowId: null,
+              lineId: null,
+              textId: null,
+              startPoint: point,
+              startRect: null,
+              startCircle: { ...circle },
+              startArrow: null,
+              startLine: null,
+              startText: null,
+              handle: null,
+            };
+          }
+          return;
+        }
+      }
+
+      // Check arrows (from last to first for topmost selection)
+      for (let i = arrows.length - 1; i >= 0; i--) {
+        const arrow = arrows[i];
+        if (isPointOnArrow(point, arrow)) {
+          setSelectedArrowId(arrow.id);
+          // Clear other selections
+          setSelectedRectangleId(null);
+          setSelectedCircleId(null);
+          setSelectedLineId(null);
+          setSelectedTextId(null);
+          setEditingTextId(null);
+          // Check for handles (start, end, rotate)
+          const handle = getArrowHandle(point, arrow);
+          if (handle) {
+            const center = getArrowCenter(arrow);
+            if (handle === "rotate") {
+              // Start rotation
+              const dx = point.x - center.x;
+              const dy = point.y - center.y;
+              const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+              interactionRef.current = {
+                type: "rotate",
+                rectangleId: null,
+                circleId: null,
+                arrowId: arrow.id,
+                lineId: null,
+                textId: null,
+                startPoint: point,
+                startRect: null,
+                startCircle: null,
+                startArrow: { ...arrow },
+                startLine: null,
+                startText: null,
+                handle: "rotate",
+                centerPoint: center,
+                initialAngle: currentAngle - arrow.rotation,
+              };
+            } else {
+              // Start resize (start or end handle)
+              interactionRef.current = {
+                type: "resize",
+                rectangleId: null,
+                circleId: null,
+                arrowId: arrow.id,
+                lineId: null,
+                textId: null,
+                startPoint: point,
+                startRect: null,
+                startCircle: null,
+                startArrow: { ...arrow },
+                startLine: null,
+                startText: null,
+                handle,
+              };
+            }
+          } else {
+            // Start move interaction
+            interactionRef.current = {
+              type: "move",
+              rectangleId: null,
+              circleId: null,
+              arrowId: arrow.id,
+              lineId: null,
+              textId: null,
+              startPoint: point,
+              startRect: null,
+              startCircle: null,
+              startArrow: { ...arrow },
+              startLine: null,
+              startText: null,
+              handle: null,
+            };
+          }
+          return;
+        }
+      }
+
+      // Check lines (from last to first for topmost selection)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        if (isPointOnLine(point, line)) {
+          setSelectedLineId(line.id);
+          // Clear other selections
+          setSelectedRectangleId(null);
+          setSelectedCircleId(null);
+          setSelectedArrowId(null);
+          setSelectedTextId(null);
+          setEditingTextId(null);
+          // Check for handles (start, end, rotate)
+          const handle = getLineHandle(point, line);
+          if (handle) {
+            const center = getLineCenter(line);
+            if (handle === "rotate") {
+              // Start rotation
+              const dx = point.x - center.x;
+              const dy = point.y - center.y;
+              const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+              interactionRef.current = {
+                type: "rotate",
+                rectangleId: null,
+                circleId: null,
+                arrowId: null,
+                lineId: line.id,
+                textId: null,
+                startPoint: point,
+                startRect: null,
+                startCircle: null,
+                startArrow: null,
+                startLine: { ...line },
+                startText: null,
+                handle: "rotate",
+                centerPoint: center,
+                initialAngle: currentAngle - line.rotation,
+              };
+            } else {
+              // Start resize (start or end handle)
+              interactionRef.current = {
+                type: "resize",
+                rectangleId: null,
+                circleId: null,
+                arrowId: null,
+                lineId: line.id,
+                textId: null,
+                startPoint: point,
+                startRect: null,
+                startCircle: null,
+                startArrow: null,
+                startLine: { ...line },
+                startText: null,
+                handle,
+              };
+            }
+          } else {
+            // Start move interaction
+            interactionRef.current = {
+              type: "move",
+              rectangleId: null,
+              circleId: null,
+              arrowId: null,
+              lineId: line.id,
+              textId: null,
+              startPoint: point,
+              startRect: null,
+              startCircle: null,
+              startArrow: null,
+              startLine: { ...line },
+              startText: null,
+              handle: null,
+            };
+          }
+          return;
+        }
+      }
+
+      // Clicked empty space - deselect everything
       setSelectedTextId(null);
       setSelectedRectangleId(null);
       setSelectedCircleId(null);
@@ -2029,7 +2352,39 @@ export default function SharedBoardPage() {
       for (let i = texts.length - 1; i >= 0; i--) {
         const text = texts[i];
         if (isPointInText(point, text)) {
-          setCursor("pointer");
+          setCursor("move");
+          return;
+        }
+      }
+      // Check if hovering over any rectangle
+      for (let i = rectangles.length - 1; i >= 0; i--) {
+        const rect = rectangles[i];
+        if (isPointInRectangle(point, rect)) {
+          setCursor("move");
+          return;
+        }
+      }
+      // Check if hovering over any circle
+      for (let i = circles.length - 1; i >= 0; i--) {
+        const circle = circles[i];
+        if (isPointInCircle(point, circle)) {
+          setCursor("move");
+          return;
+        }
+      }
+      // Check if hovering over any arrow
+      for (let i = arrows.length - 1; i >= 0; i--) {
+        const arrow = arrows[i];
+        if (isPointOnArrow(point, arrow)) {
+          setCursor("move");
+          return;
+        }
+      }
+      // Check if hovering over any line
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        if (isPointOnLine(point, line)) {
+          setCursor("move");
           return;
         }
       }
@@ -2301,6 +2656,306 @@ export default function SharedBoardPage() {
       return;
     }
 
+    // Select tool - handle move for all shape types
+    if (activeTool === "select" && interactionRef.current) {
+      const interaction = interactionRef.current;
+
+      // Move rectangle
+      if (interaction.type === "move" && interaction.startRect) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        setRectangles((prev) =>
+          prev.map((rect) =>
+            rect.id === interaction.rectangleId
+              ? {
+                  ...rect,
+                  x: interaction.startRect!.x + deltaX,
+                  y: interaction.startRect!.y + deltaY,
+                }
+              : rect
+          )
+        );
+        return;
+      }
+
+      // Resize rectangle
+      if (interaction.type === "resize" && interaction.startRect && interaction.handle) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        const MIN_SIZE = 20;
+
+        let newX = interaction.startRect.x;
+        let newY = interaction.startRect.y;
+        let newWidth = interaction.startRect.width;
+        let newHeight = interaction.startRect.height;
+
+        switch (interaction.handle) {
+          case "top-left":
+            newX = interaction.startRect.x + deltaX;
+            newY = interaction.startRect.y + deltaY;
+            newWidth = interaction.startRect.width - deltaX;
+            newHeight = interaction.startRect.height - deltaY;
+            break;
+          case "top-right":
+            newY = interaction.startRect.y + deltaY;
+            newWidth = interaction.startRect.width + deltaX;
+            newHeight = interaction.startRect.height - deltaY;
+            break;
+          case "bottom-left":
+            newX = interaction.startRect.x + deltaX;
+            newWidth = interaction.startRect.width - deltaX;
+            newHeight = interaction.startRect.height + deltaY;
+            break;
+          case "bottom-right":
+            newWidth = interaction.startRect.width + deltaX;
+            newHeight = interaction.startRect.height + deltaY;
+            break;
+        }
+
+        // Enforce minimum size
+        if (newWidth < MIN_SIZE) {
+          newWidth = MIN_SIZE;
+          if (interaction.handle === "top-left" || interaction.handle === "bottom-left") {
+            newX = interaction.startRect.x + interaction.startRect.width - MIN_SIZE;
+          }
+        }
+        if (newHeight < MIN_SIZE) {
+          newHeight = MIN_SIZE;
+          if (interaction.handle === "top-left" || interaction.handle === "top-right") {
+            newY = interaction.startRect.y + interaction.startRect.height - MIN_SIZE;
+          }
+        }
+
+        setRectangles((prev) =>
+          prev.map((rect) =>
+            rect.id === interaction.rectangleId
+              ? { ...rect, x: newX, y: newY, width: newWidth, height: newHeight }
+              : rect
+          )
+        );
+        return;
+      }
+
+      // Move circle
+      if (interaction.type === "move" && interaction.startCircle) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        setCircles((prev) =>
+          prev.map((circle) =>
+            circle.id === interaction.circleId
+              ? {
+                  ...circle,
+                  x: interaction.startCircle!.x + deltaX,
+                  y: interaction.startCircle!.y + deltaY,
+                }
+              : circle
+          )
+        );
+        return;
+      }
+
+      // Resize circle
+      if (interaction.type === "resize" && interaction.startCircle) {
+        const dx = point.x - interaction.startCircle.x;
+        const dy = point.y - interaction.startCircle.y;
+        const newRadius = Math.sqrt(dx * dx + dy * dy);
+        const MIN_RADIUS = 10;
+        const radius = Math.max(newRadius, MIN_RADIUS);
+        setCircles((prev) =>
+          prev.map((circle) =>
+            circle.id === interaction.circleId ? { ...circle, radius } : circle
+          )
+        );
+        return;
+      }
+
+      // Move arrow
+      if (interaction.type === "move" && interaction.startArrow) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        setArrows((prev) =>
+          prev.map((arrow) =>
+            arrow.id === interaction.arrowId
+              ? {
+                  ...arrow,
+                  startX: interaction.startArrow!.startX + deltaX,
+                  startY: interaction.startArrow!.startY + deltaY,
+                  endX: interaction.startArrow!.endX + deltaX,
+                  endY: interaction.startArrow!.endY + deltaY,
+                }
+              : arrow
+          )
+        );
+        return;
+      }
+
+      // Resize arrow
+      if (interaction.type === "resize" && interaction.startArrow && interaction.handle) {
+        if (interaction.handle === "start") {
+          setArrows((prev) =>
+            prev.map((arrow) =>
+              arrow.id === interaction.arrowId
+                ? {
+                    ...arrow,
+                    startX: point.x,
+                    startY: point.y,
+                  }
+                : arrow
+            )
+          );
+        } else if (interaction.handle === "end") {
+          setArrows((prev) =>
+            prev.map((arrow) =>
+              arrow.id === interaction.arrowId
+                ? {
+                    ...arrow,
+                    endX: point.x,
+                    endY: point.y,
+                  }
+                : arrow
+            )
+          );
+        }
+        return;
+      }
+
+      // Rotate arrow
+      if (interaction.type === "rotate" && interaction.startArrow && interaction.centerPoint && interaction.initialAngle !== undefined) {
+        const dx = point.x - interaction.centerPoint.x;
+        const dy = point.y - interaction.centerPoint.y;
+        const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+        const rotationDelta = currentAngle - interaction.initialAngle;
+        const newRotation = interaction.startArrow.rotation + rotationDelta;
+        // Normalize to 0-360
+        const normalizedRotation = ((newRotation % 360) + 360) % 360;
+        
+        // Rotate start and end points around center
+        const center = interaction.centerPoint;
+        const originalStart = rotatePoint(interaction.startArrow.startX, interaction.startArrow.startY, center, -interaction.startArrow.rotation);
+        const originalEnd = rotatePoint(interaction.startArrow.endX, interaction.startArrow.endY, center, -interaction.startArrow.rotation);
+        const newStart = rotatePoint(originalStart.x, originalStart.y, center, normalizedRotation);
+        const newEnd = rotatePoint(originalEnd.x, originalEnd.y, center, normalizedRotation);
+        
+        setArrows((prev) =>
+          prev.map((arrow) =>
+            arrow.id === interaction.arrowId
+              ? {
+                  ...arrow,
+                  startX: newStart.x,
+                  startY: newStart.y,
+                  endX: newEnd.x,
+                  endY: newEnd.y,
+                  rotation: normalizedRotation,
+                }
+              : arrow
+          )
+        );
+        return;
+      }
+
+      // Move line
+      if (interaction.type === "move" && interaction.startLine) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        setLines((prev) =>
+          prev.map((line) =>
+            line.id === interaction.lineId
+              ? {
+                  ...line,
+                  startX: interaction.startLine!.startX + deltaX,
+                  startY: interaction.startLine!.startY + deltaY,
+                  endX: interaction.startLine!.endX + deltaX,
+                  endY: interaction.startLine!.endY + deltaY,
+                }
+              : line
+          )
+        );
+        return;
+      }
+
+      // Resize line
+      if (interaction.type === "resize" && interaction.startLine && interaction.handle) {
+        if (interaction.handle === "start") {
+          setLines((prev) =>
+            prev.map((line) =>
+              line.id === interaction.lineId
+                ? {
+                    ...line,
+                    startX: point.x,
+                    startY: point.y,
+                  }
+                : line
+            )
+          );
+        } else if (interaction.handle === "end") {
+          setLines((prev) =>
+            prev.map((line) =>
+              line.id === interaction.lineId
+                ? {
+                    ...line,
+                    endX: point.x,
+                    endY: point.y,
+                  }
+                : line
+            )
+          );
+        }
+        return;
+      }
+
+      // Rotate line
+      if (interaction.type === "rotate" && interaction.startLine && interaction.centerPoint && interaction.initialAngle !== undefined) {
+        const dx = point.x - interaction.centerPoint.x;
+        const dy = point.y - interaction.centerPoint.y;
+        const currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+        const rotationDelta = currentAngle - interaction.initialAngle;
+        const newRotation = interaction.startLine.rotation + rotationDelta;
+        // Normalize to 0-360
+        const normalizedRotation = ((newRotation % 360) + 360) % 360;
+        
+        // Rotate start and end points around center
+        const center = interaction.centerPoint;
+        const originalStart = rotatePoint(interaction.startLine.startX, interaction.startLine.startY, center, -interaction.startLine.rotation);
+        const originalEnd = rotatePoint(interaction.startLine.endX, interaction.startLine.endY, center, -interaction.startLine.rotation);
+        const newStart = rotatePoint(originalStart.x, originalStart.y, center, normalizedRotation);
+        const newEnd = rotatePoint(originalEnd.x, originalEnd.y, center, normalizedRotation);
+        
+        setLines((prev) =>
+          prev.map((line) =>
+            line.id === interaction.lineId
+              ? {
+                  ...line,
+                  startX: newStart.x,
+                  startY: newStart.y,
+                  endX: newEnd.x,
+                  endY: newEnd.y,
+                  rotation: normalizedRotation,
+                }
+              : line
+          )
+        );
+        return;
+      }
+
+      // Move text
+      if (interaction.type === "move" && interaction.startText) {
+        const deltaX = point.x - interaction.startPoint.x;
+        const deltaY = point.y - interaction.startPoint.y;
+        setTexts((prev) =>
+          prev.map((text) =>
+            text.id === interaction.textId
+              ? {
+                  ...text,
+                  x: interaction.startText!.x + deltaX,
+                  y: interaction.startText!.y + deltaY,
+                }
+              : text
+          )
+        );
+        return;
+      }
+    }
+
     // Rectangle tool - handle drawing, move, or resize
     if (activeTool === "rectangle" && interactionRef.current) {
       const interaction = interactionRef.current;
@@ -2486,6 +3141,17 @@ export default function SharedBoardPage() {
       interactionRef.current = null;
     }
 
+    // Select tool - finish move, resize, or rotate for all shape types
+    if (activeTool === "select" && interactionRef.current) {
+      const interaction = interactionRef.current;
+
+      if (interaction.type === "move" || interaction.type === "resize" || interaction.type === "rotate") {
+        // Move/resize/rotate is already applied, just clear interaction
+      }
+
+      interactionRef.current = null;
+    }
+
     // Rectangle tool - finish drawing, move, or resize
     if (activeTool === "rectangle" && interactionRef.current) {
       const interaction = interactionRef.current;
@@ -2597,28 +3263,149 @@ export default function SharedBoardPage() {
   };
 
   /**
-   * Handle saving board - sends board data to backend
-   * TODO: Implement backend API call
+   * Prepare snapshot data from current board state
    */
-  const handleSave = async () => {
-    // Prepare board data
-    const boardData = {
-      boardId,
-      strokes,
-      rectangles,
-      circles,
-      arrows,
-      lines,
-      texts,
+  const prepareSnapshotData = useCallback((): WhiteboardSnapshotData => {
+    return {
+      strokes: strokes.map((stroke) => ({
+        color: stroke.color,
+        width: stroke.width,
+        points: stroke.points.map((point) => ({ x: point.x, y: point.y })),
+      })),
+      rectangles: rectangles.map((rect) => ({
+        id: rect.id,
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        color: rect.color,
+      })),
+      circles: circles.map((circle) => ({
+        id: circle.id,
+        x: circle.x,
+        y: circle.y,
+        radius: circle.radius,
+        color: circle.color,
+      })),
+      arrows: arrows.map((arrow) => ({
+        id: arrow.id,
+        startX: arrow.startX,
+        startY: arrow.startY,
+        endX: arrow.endX,
+        endY: arrow.endY,
+        color: arrow.color,
+        rotation: arrow.rotation,
+      })),
+      lines: lines.map((line) => ({
+        id: line.id,
+        startX: line.startX,
+        startY: line.startY,
+        endX: line.endX,
+        endY: line.endY,
+        color: line.color,
+        rotation: line.rotation,
+      })),
+      texts: texts.map((text) => ({
+        id: text.id,
+        x: text.x,
+        y: text.y,
+        text: text.text,
+        color: text.color,
+        fontSize: text.fontSize,
+      })),
     };
+  }, [strokes, rectangles, circles, arrows, lines, texts]);
 
-    // TODO: Send to backend API
-    // Example: await fetch('/api/boards/save', { method: 'POST', body: JSON.stringify(boardData) })
-    
-    console.log('Saving board data:', boardData);
-    // For now, just show a placeholder message
-    alert('Board saved! (Backend integration pending)');
-  };
+  /**
+   * Handle manual save button click
+   * Saves whiteboard snapshot to backend
+   */
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    setSaveStatus("saving");
+    setSaveError(null);
+
+    try {
+      // Prepare snapshot data from current board state
+      const snapshotData = prepareSnapshotData();
+
+      // Call save snapshot API
+      const response = await whiteboardService.saveSnapshot(boardId, {
+        data: snapshotData,
+      });
+
+      if (response.success) {
+        setSaveStatus("success");
+        // Clear success status after 2 seconds
+        setTimeout(() => {
+          setSaveStatus("idle");
+        }, 2000);
+      } else {
+        setSaveStatus("error");
+        setSaveError("Failed to save snapshot");
+      }
+    } catch (error) {
+      setSaveStatus("error");
+      if (error instanceof ApiError) {
+        if (error.statusCode === 404) {
+          setSaveError("Whiteboard not found");
+        } else if (error.statusCode === 403) {
+          setSaveError("You don't have permission to save this whiteboard");
+        } else {
+          setSaveError(error.message || "Failed to save snapshot");
+        }
+      } else {
+        setSaveError("An unexpected error occurred");
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }, [boardId, prepareSnapshotData]);
+
+  // Show loading state while fetching whiteboard data
+  if (isLoading) {
+    return (
+      <AuthGuard redirectTo="/DrawTogether/auth/login">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <DashboardHeader />
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-solid border-teal-500 border-r-transparent"></div>
+              <p className="mt-4 text-sm text-slate-600">Loading whiteboard...</p>
+            </div>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
+
+  // Show error state if loading failed
+  if (loadError) {
+    return (
+      <AuthGuard redirectTo="/DrawTogether/auth/login">
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          <DashboardHeader />
+          <div className="flex min-h-[60vh] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 text-red-500">
+                <svg className="h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-lg font-semibold text-slate-900">Error loading whiteboard</p>
+              <p className="mt-2 text-sm text-red-600">{loadError}</p>
+              <button
+                onClick={loadWhiteboardData}
+                className="mt-4 rounded-lg bg-teal-500 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-600 transition"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard redirectTo="/DrawTogether/auth/login">
@@ -2663,10 +3450,30 @@ export default function SharedBoardPage() {
           </button>
           <button
             onClick={handleSave}
-            className="absolute right-4 top-4 z-10 rounded-full bg-teal-500 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-teal-600 transition"
+            disabled={isSaving}
+            className="absolute right-4 top-4 z-10 rounded-full bg-teal-500 px-5 py-2 text-sm font-semibold text-white shadow hover:bg-teal-600 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            Save
+            {isSaving ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                Saving...
+              </>
+            ) : saveStatus === "success" ? (
+              <>
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Saved
+              </>
+            ) : (
+              "Save"
+            )}
           </button>
+          {saveError && (
+            <div className="absolute right-4 top-16 z-10 rounded-lg bg-red-50 border border-red-200 px-4 py-2 text-sm text-red-700 max-w-xs">
+              {saveError}
+            </div>
+          )}
 
               {/* Canvas Area */}
               <div className="relative h-full w-full rounded-2xl border border-slate-200 bg-white shadow-inner min-h-[500px]">
