@@ -7,6 +7,8 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { whiteboardService } from "@/lib/api/whiteboard.service";
 import { ApiError } from "@/lib/api/client";
 import type { WhiteboardSnapshotData } from "@/lib/types/whiteboard";
+import { useWhiteboardSocket } from "@/lib/hooks/useWhiteboardSocket";
+import type { DrawUpdatePayload, UserEventPayload, SocketStatus } from "@/lib/api/socket.service";
 
 const TOOLBAR_ITEMS = [
   { label: "Select", value: "select" },
@@ -143,6 +145,218 @@ export default function SharedBoardPage() {
   const currentArrowRef = useRef<Arrow | null>(null);
   const currentLineRef = useRef<Line | null>(null);
   const interactionRef = useRef<InteractionState | null>(null);
+  const isRemoteUpdateRef = useRef(false); // Flag to prevent re-emitting remote updates
+  const [activeUsers, setActiveUsers] = useState<Set<string>>(new Set());
+
+  /**
+   * Socket.IO integration for real-time collaboration
+   */
+  const { emitDrawUpdate, isConnected } = useWhiteboardSocket(boardId, {
+    onDrawUpdate: useCallback((payload: DrawUpdatePayload) => {
+      // Mark as remote update to prevent re-emitting
+      isRemoteUpdateRef.current = true;
+
+      try {
+        const { updateType, data } = payload;
+
+        switch (updateType) {
+          case "stroke_add":
+            if (data.stroke) {
+              setStrokes((prev) => [...prev, data.stroke!]);
+            }
+            break;
+
+          case "rectangle_add":
+            if (data.rectangle) {
+              setRectangles((prev) => [...prev, data.rectangle!]);
+            }
+            break;
+
+          case "rectangle_update":
+            if (data.rectangle) {
+              setRectangles((prev) =>
+                prev.map((rect) =>
+                  rect.id === data.rectangle!.id ? data.rectangle! : rect
+                )
+              );
+            }
+            break;
+
+          case "rectangle_delete":
+            if (data.shapeId) {
+              setRectangles((prev) => prev.filter((rect) => rect.id !== data.shapeId));
+              if (selectedRectangleId === data.shapeId) {
+                setSelectedRectangleId(null);
+              }
+            }
+            break;
+
+          case "circle_add":
+            if (data.circle) {
+              setCircles((prev) => [...prev, data.circle!]);
+            }
+            break;
+
+          case "circle_update":
+            if (data.circle) {
+              setCircles((prev) =>
+                prev.map((circle) =>
+                  circle.id === data.circle!.id ? data.circle! : circle
+                )
+              );
+            }
+            break;
+
+          case "circle_delete":
+            if (data.shapeId) {
+              setCircles((prev) => prev.filter((circle) => circle.id !== data.shapeId));
+              if (selectedCircleId === data.shapeId) {
+                setSelectedCircleId(null);
+              }
+            }
+            break;
+
+          case "arrow_add":
+            if (data.arrow) {
+              setArrows((prev) => [...prev, data.arrow!]);
+            }
+            break;
+
+          case "arrow_update":
+            if (data.arrow) {
+              setArrows((prev) =>
+                prev.map((arrow) =>
+                  arrow.id === data.arrow!.id ? data.arrow! : arrow
+                )
+              );
+            }
+            break;
+
+          case "arrow_delete":
+            if (data.shapeId) {
+              setArrows((prev) => prev.filter((arrow) => arrow.id !== data.shapeId));
+              if (selectedArrowId === data.shapeId) {
+                setSelectedArrowId(null);
+              }
+            }
+            break;
+
+          case "line_add":
+            if (data.line) {
+              setLines((prev) => [...prev, data.line!]);
+            }
+            break;
+
+          case "line_update":
+            if (data.line) {
+              setLines((prev) =>
+                prev.map((line) =>
+                  line.id === data.line!.id ? data.line! : line
+                )
+              );
+            }
+            break;
+
+          case "line_delete":
+            if (data.shapeId) {
+              setLines((prev) => prev.filter((line) => line.id !== data.shapeId));
+              if (selectedLineId === data.shapeId) {
+                setSelectedLineId(null);
+              }
+            }
+            break;
+
+          case "text_add":
+            if (data.text) {
+              setTexts((prev) => [...prev, data.text!]);
+            }
+            break;
+
+          case "text_update":
+            if (data.text) {
+              setTexts((prev) =>
+                prev.map((text) =>
+                  text.id === data.text!.id ? data.text! : text
+                )
+              );
+            }
+            break;
+
+          case "text_delete":
+            if (data.shapeId) {
+              setTexts((prev) => prev.filter((text) => text.id !== data.shapeId));
+              if (selectedTextId === data.shapeId) {
+                setSelectedTextId(null);
+                setEditingTextId(null);
+              }
+            }
+            break;
+
+          case "clear_all":
+            setStrokes([]);
+            setRectangles([]);
+            setCircles([]);
+            setArrows([]);
+            setLines([]);
+            setTexts([]);
+            setSelectedRectangleId(null);
+            setSelectedCircleId(null);
+            setSelectedArrowId(null);
+            setSelectedLineId(null);
+            setSelectedTextId(null);
+            setEditingTextId(null);
+            break;
+        }
+      } finally {
+        // Reset flag after processing
+        isRemoteUpdateRef.current = false;
+      }
+    }, [selectedRectangleId, selectedCircleId, selectedArrowId, selectedLineId, selectedTextId]),
+
+    onUserJoined: useCallback((payload: UserEventPayload) => {
+      setActiveUsers((prev) => {
+        const newSet = new Set(prev);
+        if (payload.userEmail) {
+          newSet.add(payload.userEmail);
+        }
+        return newSet;
+      });
+    }, []),
+
+    onUserLeft: useCallback((payload: UserEventPayload) => {
+      setActiveUsers((prev) => {
+        const newSet = new Set(prev);
+        if (payload.userEmail) {
+          newSet.delete(payload.userEmail);
+        }
+        return newSet;
+      });
+    }, []),
+
+    onStatusChange: useCallback((status: SocketStatus) => {
+      console.log("Socket status changed:", status);
+    }, []),
+
+    onError: useCallback((error: Error) => {
+      console.error("Socket error:", error);
+    }, []),
+  });
+
+  /**
+   * Helper function to emit draw update (only for local changes)
+   */
+  const emitLocalDrawUpdate = useCallback(
+    (updateType: DrawUpdatePayload["updateType"], data: DrawUpdatePayload["data"]) => {
+      if (!isRemoteUpdateRef.current && isConnected && boardId && boardId !== "board") {
+        emitDrawUpdate({
+          whiteboardId: boardId,
+          updateType,
+          data,
+        });
+      }
+    },
+    [emitDrawUpdate, isConnected, boardId]
+  );
 
   /**
    * Gets canvas context for drawing
@@ -2203,6 +2417,17 @@ export default function SharedBoardPage() {
       setSelectedTextId(newText.id);
       setEditingTextId(newText.id);
       setEditingTextValue("Text");
+      // Emit socket event for real-time collaboration
+      emitLocalDrawUpdate("text_add", {
+        text: {
+          id: newText.id,
+          x: newText.x,
+          y: newText.y,
+          text: newText.text,
+          color: newText.color,
+          fontSize: newText.fontSize,
+        },
+      });
     }
   };
 
@@ -3058,6 +3283,14 @@ export default function SharedBoardPage() {
       const stroke = currentStrokeRef.current;
       if (stroke.points.length >= 2) {
         setStrokes((prev) => [...prev, stroke]);
+        // Emit socket event for real-time collaboration
+        emitLocalDrawUpdate("stroke_add", {
+          stroke: {
+            color: stroke.color,
+            width: stroke.width,
+            points: stroke.points.map((p) => ({ x: p.x, y: p.y })),
+          },
+        });
       }
       currentStrokeRef.current = null;
       setIsDrawing(false);
@@ -3074,11 +3307,34 @@ export default function SharedBoardPage() {
         if (circle.radius >= 10) {
           setCircles((prev) => [...prev, circle]);
           setSelectedCircleId(circle.id);
+          // Emit socket event for real-time collaboration
+          emitLocalDrawUpdate("circle_add", {
+            circle: {
+              id: circle.id,
+              x: circle.x,
+              y: circle.y,
+              radius: circle.radius,
+              color: circle.color,
+            },
+          });
         }
         currentCircleRef.current = null;
         setIsDrawing(false);
       } else if (interaction.type === "move" || interaction.type === "resize") {
         // Move/resize is already applied, just clear interaction
+        // Emit update event for move/resize
+        const updatedCircle = circles.find((c) => c.id === interaction.circleId);
+        if (updatedCircle) {
+          emitLocalDrawUpdate("circle_update", {
+            circle: {
+              id: updatedCircle.id,
+              x: updatedCircle.x,
+              y: updatedCircle.y,
+              radius: updatedCircle.radius,
+              color: updatedCircle.color,
+            },
+          });
+        }
       }
 
     interactionRef.current = null;
@@ -3097,11 +3353,38 @@ export default function SharedBoardPage() {
         if (length >= 10) {
           setArrows((prev) => [...prev, arrow]);
           setSelectedArrowId(arrow.id);
+          // Emit socket event for real-time collaboration
+          emitLocalDrawUpdate("arrow_add", {
+            arrow: {
+              id: arrow.id,
+              startX: arrow.startX,
+              startY: arrow.startY,
+              endX: arrow.endX,
+              endY: arrow.endY,
+              color: arrow.color,
+              rotation: arrow.rotation,
+            },
+          });
         }
         currentArrowRef.current = null;
         setIsDrawing(false);
       } else if (interaction.type === "move" || interaction.type === "resize" || interaction.type === "rotate") {
         // Move/resize/rotate is already applied, just clear interaction
+        // Emit update event for move/resize/rotate
+        const updatedArrow = arrows.find((a) => a.id === interaction.arrowId);
+        if (updatedArrow) {
+          emitLocalDrawUpdate("arrow_update", {
+            arrow: {
+              id: updatedArrow.id,
+              startX: updatedArrow.startX,
+              startY: updatedArrow.startY,
+              endX: updatedArrow.endX,
+              endY: updatedArrow.endY,
+              color: updatedArrow.color,
+              rotation: updatedArrow.rotation,
+            },
+          });
+        }
       }
 
       interactionRef.current = null;
@@ -3120,11 +3403,38 @@ export default function SharedBoardPage() {
         if (length >= 10) {
           setLines((prev) => [...prev, line]);
           setSelectedLineId(line.id);
+          // Emit socket event for real-time collaboration
+          emitLocalDrawUpdate("line_add", {
+            line: {
+              id: line.id,
+              startX: line.startX,
+              startY: line.startY,
+              endX: line.endX,
+              endY: line.endY,
+              color: line.color,
+              rotation: line.rotation,
+            },
+          });
         }
         currentLineRef.current = null;
         setIsDrawing(false);
       } else if (interaction.type === "move" || interaction.type === "resize" || interaction.type === "rotate") {
         // Move/resize/rotate is already applied, just clear interaction
+        // Emit update event for move/resize/rotate
+        const updatedLine = lines.find((l) => l.id === interaction.lineId);
+        if (updatedLine) {
+          emitLocalDrawUpdate("line_update", {
+            line: {
+              id: updatedLine.id,
+              startX: updatedLine.startX,
+              startY: updatedLine.startY,
+              endX: updatedLine.endX,
+              endY: updatedLine.endY,
+              color: updatedLine.color,
+              rotation: updatedLine.rotation,
+            },
+          });
+        }
       }
 
       interactionRef.current = null;
@@ -3136,6 +3446,20 @@ export default function SharedBoardPage() {
 
       if (interaction.type === "move") {
         // Move is already applied, just clear interaction
+        // Emit update event for text move
+        const updatedText = texts.find((t) => t.id === interaction.textId);
+        if (updatedText) {
+          emitLocalDrawUpdate("text_update", {
+            text: {
+              id: updatedText.id,
+              x: updatedText.x,
+              y: updatedText.y,
+              text: updatedText.text,
+              color: updatedText.color,
+              fontSize: updatedText.fontSize,
+            },
+          });
+        }
       }
 
       interactionRef.current = null;
@@ -3147,6 +3471,79 @@ export default function SharedBoardPage() {
 
       if (interaction.type === "move" || interaction.type === "resize" || interaction.type === "rotate") {
         // Move/resize/rotate is already applied, just clear interaction
+        // Emit update events for all shape types
+        if (interaction.rectangleId) {
+          const updatedRect = rectangles.find((r) => r.id === interaction.rectangleId);
+          if (updatedRect) {
+            emitLocalDrawUpdate("rectangle_update", {
+              rectangle: {
+                id: updatedRect.id,
+                x: updatedRect.x,
+                y: updatedRect.y,
+                width: updatedRect.width,
+                height: updatedRect.height,
+                color: updatedRect.color,
+              },
+            });
+          }
+        } else if (interaction.circleId) {
+          const updatedCircle = circles.find((c) => c.id === interaction.circleId);
+          if (updatedCircle) {
+            emitLocalDrawUpdate("circle_update", {
+              circle: {
+                id: updatedCircle.id,
+                x: updatedCircle.x,
+                y: updatedCircle.y,
+                radius: updatedCircle.radius,
+                color: updatedCircle.color,
+              },
+            });
+          }
+        } else if (interaction.arrowId) {
+          const updatedArrow = arrows.find((a) => a.id === interaction.arrowId);
+          if (updatedArrow) {
+            emitLocalDrawUpdate("arrow_update", {
+              arrow: {
+                id: updatedArrow.id,
+                startX: updatedArrow.startX,
+                startY: updatedArrow.startY,
+                endX: updatedArrow.endX,
+                endY: updatedArrow.endY,
+                color: updatedArrow.color,
+                rotation: updatedArrow.rotation,
+              },
+            });
+          }
+        } else if (interaction.lineId) {
+          const updatedLine = lines.find((l) => l.id === interaction.lineId);
+          if (updatedLine) {
+            emitLocalDrawUpdate("line_update", {
+              line: {
+                id: updatedLine.id,
+                startX: updatedLine.startX,
+                startY: updatedLine.startY,
+                endX: updatedLine.endX,
+                endY: updatedLine.endY,
+                color: updatedLine.color,
+                rotation: updatedLine.rotation,
+              },
+            });
+          }
+        } else if (interaction.textId) {
+          const updatedText = texts.find((t) => t.id === interaction.textId);
+          if (updatedText) {
+            emitLocalDrawUpdate("text_update", {
+              text: {
+                id: updatedText.id,
+                x: updatedText.x,
+                y: updatedText.y,
+                text: updatedText.text,
+                color: updatedText.color,
+                fontSize: updatedText.fontSize,
+              },
+            });
+          }
+        }
       }
 
       interactionRef.current = null;
@@ -3162,11 +3559,36 @@ export default function SharedBoardPage() {
         if (rect.width >= 20 && rect.height >= 20) {
           setRectangles((prev) => [...prev, rect]);
           setSelectedRectangleId(rect.id);
+          // Emit socket event for real-time collaboration
+          emitLocalDrawUpdate("rectangle_add", {
+            rectangle: {
+              id: rect.id,
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              color: rect.color,
+            },
+          });
         }
         currentRectRef.current = null;
         setIsDrawing(false);
       } else if (interaction.type === "move" || interaction.type === "resize") {
         // Move/resize is already applied, just clear interaction
+        // Emit update event for move/resize
+        const updatedRect = rectangles.find((r) => r.id === interaction.rectangleId);
+        if (updatedRect) {
+          emitLocalDrawUpdate("rectangle_update", {
+            rectangle: {
+              id: updatedRect.id,
+              x: updatedRect.x,
+              y: updatedRect.y,
+              width: updatedRect.width,
+              height: updatedRect.height,
+              color: updatedRect.color,
+            },
+          });
+        }
       }
 
       interactionRef.current = null;
@@ -3248,6 +3670,8 @@ export default function SharedBoardPage() {
     setSelectedLineId(null);
     setSelectedTextId(null);
     setEditingTextId(null);
+    // Emit socket event for real-time collaboration
+    emitLocalDrawUpdate("clear_all", {});
   };
 
   /**
@@ -3255,10 +3679,13 @@ export default function SharedBoardPage() {
    */
   const handleDeleteText = () => {
     if (selectedTextId) {
-      setTexts((prev) => prev.filter((text) => text.id !== selectedTextId));
+      const textId = selectedTextId;
+      setTexts((prev) => prev.filter((text) => text.id !== textId));
       setSelectedTextId(null);
       setEditingTextId(null);
       setEditingTextValue("");
+      // Emit socket event for real-time collaboration
+      emitLocalDrawUpdate("text_delete", { shapeId: textId });
     }
   };
 
