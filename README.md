@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Draw Together – Frontend
 
-## Getting Started
+Draw Together is a web-based collaborative whiteboard application that allows users to create boards, draw freely, add shapes and text, and collaborate with others in real time. The frontend provides an intuitive and responsive interface focused on creativity, teamwork, and smooth user experience.
 
-First, run the development server:
+This project consumes the Draw Together Backend API for authentication, whiteboard management, snapshots, and real-time collaboration via WebSockets. It is built to work seamlessly with the backend to deliver a complete collaborative drawing experience.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Backend Repository
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Backend repo: https://github.com/osid-alkourd/draw-togother-backend
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Screenshots
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Landing Page
 
-## Learn More
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091201/landing_page_1_1_xffrur.png" alt="Landing Page 1" width="100%"/>
+    </td>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091192/landing_page_2_uvngp1.png" alt="Landing Page 2" width="100%"/>
+    </td>
+  </tr>
+</table>
 
-To learn more about Next.js, take a look at the following resources:
+### Dashboard
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091198/dashboard-1_kzpdzy.png" alt="Dashboard 1" width="100%"/>
+    </td>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091188/dashboard-2_e2gfgj.png" alt="Dashboard 2" width="100%"/>
+    </td>
+  </tr>
+</table>
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### My Whiteboards Page
 
-## Deploy on Vercel
+<img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091210/my-whiteboars-page_xh07ct.png" alt="My Whiteboards Page" width="100%"/>
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Whiteboards Shared With Me
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+<img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091209/whiteboards-shared-with-me_fotaso.png" alt="Whiteboards Shared With Me" width="100%"/>
+
+### My Whiteboard
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091199/my-whiteboard-1_elb57x.png" alt="My Whiteboard 1" width="100%"/>
+    </td>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091201/my-whiteboard-2_dqvicq.png" alt="My Whiteboard 2" width="100%"/>
+    </td>
+  </tr>
+</table>
+
+### Add New User to My Whiteboard
+
+<img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091191/add-new-user-to-whiteboard_lcfujx.png" alt="Add New User to My Whiteboard" width="100%"/>
+
+### Create New Whiteboard
+
+<table>
+  <tr>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091192/create_new_whiteboard_1_eiasgj.png" alt="Create New Whiteboard 1" width="100%"/>
+    </td>
+    <td align="center">
+      <img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091197/create_new_whiteboard_2_p2mo8x.png" alt="Create New Whiteboard 2" width="100%"/>
+    </td>
+  </tr>
+</table>
+
+### Shared Whiteboard
+
+<img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091209/specific-whiteboard-shared-with-me_s59osc.png" alt="Shared Whiteboard" width="100%"/>
+
+### Register Page
+
+<img src="https://res.cloudinary.com/dveucsumj/image/upload/v1769091207/register_f7ime5.png" alt="Register Page" width="100%"/>
