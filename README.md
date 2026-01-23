@@ -4,6 +4,65 @@ Draw Together is a web-based collaborative whiteboard application that allows us
 
 This project consumes the Draw Together Backend API for authentication, whiteboard management, snapshots, and real-time collaboration via WebSockets. It is built to work seamlessly with the backend to deliver a complete collaborative drawing experience.
 
+## Tech Stack
+
+### Frontend
+- Next.js
+- React
+- TypeScript
+
+### UI & Styling
+- Tailwind CSS
+- Lucide Icons
+
+### Real-Time Communication
+- Socket.IO Client
+
+## Installation
+
+### 1. Run the backend first
+
+This frontend application depends on the Draw Together backend API.
+Before running the frontend, make sure the backend repository is installed and running on port 8000.
+
+Backend repository:
+https://github.com/osid-alkourd/draw-togother-backend
+
+Follow the backend installation steps and ensure the server is running at:
+http://localhost:8000
+
+### 2. Clone the frontend repository
+
+```bash
+git clone https://github.com/osid-alkourd/draw-together-frontend
+cd draw-together-frontend
+```
+
+### 3. Install dependencies
+
+```bash
+npm install
+```
+
+### 4. Configure environment variables
+
+Create a `.env` file in the project root and add the following variable:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:8000/api
+```
+
+This variable tells the frontend where the backend API is running.
+
+### 5. Start the development server
+
+```bash
+npm run dev
+```
+
+The application will be available at:
+http://localhost:3000
+
 ## Backend Repository
 
 Backend repo: https://github.com/osid-alkourd/draw-togother-backend
